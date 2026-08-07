@@ -1,3 +1,9 @@
+This MIT license covers chrome-cat's own source. It does not cover the
+third-party files under vendor/, which carry their own licenses — see
+vendor/tesseract/NOTICE.
+
+----
+
 MIT License
 
 Copyright (c) 2026 Michael Barlow

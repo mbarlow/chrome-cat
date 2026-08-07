@@ -1,0 +1,57 @@
+Third-party components vendored into chrome-cat
+===============================================
+
+Everything in this directory is third-party. None of it is covered by
+chrome-cat's MIT license (../../LICENSE). Full Apache text is in
+LICENSE-APACHE-2.0.txt in this directory.
+
+Exact versions are recorded in VERSION; integrity in SHA256SUMS.
+
+
+tesseract.js  —  tesseract.min.js, worker.min.js
+------------------------------------------------
+Apache License 2.0
+Copyright (c) 2015 Kevin Kwok and the Tesseract.js contributors
+https://github.com/naptha/tesseract.js
+
+Bundled dependencies, per the upstream webpack license banners in
+tesseract.min.js.LICENSE.txt and worker.min.js.LICENSE.txt:
+
+  regenerator-runtime  MIT          Copyright (c) 2014-present, Facebook, Inc.
+  buffer               MIT          Copyright (c) Feross Aboukhadijeh
+  ieee754              BSD-3-Clause Copyright (c) Feross Aboukhadijeh
+  zlib.js              MIT          Copyright (c) 2012 imaya
+
+
+tesseract.js-core  —  tesseract-core-lstm.wasm{,.js},
+                      tesseract-core-simd-lstm.wasm{,.js}
+------------------------------------------------------
+Apache License 2.0
+https://github.com/naptha/tesseract.js-core
+
+WebAssembly builds of:
+
+  Tesseract OCR  Apache License 2.0
+                 Copyright (c) Google Inc. and the Tesseract contributors
+                 https://github.com/tesseract-ocr/tesseract
+
+  Leptonica      BSD 2-Clause
+                 Copyright (c) 2001-2016 Google Inc.
+                 http://www.leptonica.org/
+
+
+tessdata_fast  —  lang/eng.traineddata.gz
+-----------------------------------------
+Apache License 2.0
+Copyright (c) Google Inc.
+https://github.com/tesseract-ocr/tessdata_fast  (tag 4.0.0)
+
+Trained English LSTM model data, redistributed unmodified. Fetched from
+the Tesseract.js data mirror, https://tessdata.projectnaptha.com/
+
+
+Modifications
+-------------
+None. All files are redistributed byte-for-byte as published upstream.
+`make vendor` re-fetches them from pinned versions; `make vendor-verify`
+checks them against SHA256SUMS.
