@@ -5,7 +5,7 @@ TESS_VER := 6.0.1
 CORE_VER := 6.0.0
 CDN      := https://cdn.jsdelivr.net/npm
 
-.PHONY: help install icons vendor repo package clean
+.PHONY: help install icons vendor smoke repo package clean
 
 help:
 	@echo "chrome-chat v$(VERSION) — commands"
@@ -13,6 +13,7 @@ help:
 	@echo "  make install   - how to load the unpacked extension in Chrome"
 	@echo "  make icons     - regenerate PNG icons from icons/icon.svg"
 	@echo "  make vendor    - fetch pinned Tesseract.js files into vendor/tesseract/"
+	@echo "  make smoke     - headless boot + OCR + IDB smoke test (needs global playwright)"
 	@echo "  make repo      - git init + create private GitHub repo mbarlow/chrome-chat"
 	@echo "  make package   - create a versioned .zip for distribution"
 	@echo "  make clean     - remove build artifacts"
@@ -42,6 +43,9 @@ vendor:
 	@printf "tesseract.js %s\ntesseract.js-core %s\ntessdata 4.0.0_fast eng\n" "$(TESS_VER)" "$(CORE_VER)" > vendor/tesseract/VERSION
 	@ls -lh vendor/tesseract/ vendor/tesseract/lang/
 	@echo "Vendored. Commit the diff."
+
+smoke:
+	@node tools/smoke.mjs
 
 repo:
 	@test -d .git || git init -b main
