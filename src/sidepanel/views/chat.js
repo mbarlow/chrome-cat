@@ -4,7 +4,7 @@
 import { capturePage } from "../../capture/pipeline.js";
 import { hasAllUrls, requestAllUrls } from "../../capture/permissions.js";
 import { runCrawl, selectLinks } from "../../crawl/crawler.js";
-import { getCapture, getTiles, getFirstTile, listCaptures } from "../../db/captures.js";
+import { getCapture, getTiles, getFirstTile, listCaptures, getCaptureByUrl } from "../../db/captures.js";
 import { getSeries } from "../../db/series.js";
 import { getOrCreateChat, appendMessage } from "../../db/chats.js";
 import { answerAboutTiles } from "../../ai/vision.js";
@@ -13,6 +13,7 @@ import { smartBookmark } from "../../actions/bookmark.js";
 import { historyCaptures, bookmarkCaptures } from "../../sources/browser.js";
 import { getSettings, MAX_VISION_TILES, CRAWL_TIMEOUT_MS, CRAWL_SETTLE_MS } from "../../shared/constants.js";
 import { escapeHtml, tokenize } from "../../shared/text.js";
+import { normalizeUrl } from "../../shared/url.js";
 
 const VISION_INTENT = /\b(images?|pictures?|photos?|screenshots?|charts?|graphs?|diagrams?|logos?|icons?|layout|visual(ly)?|colors?|design|looks? like)\b/i;
 
@@ -574,6 +575,40 @@ export function createChatView(root, ctx) {
       send();
     }
   });
+
+  // Memory-list click: navigate the CURRENT tab, scan if we've never
+  // captured this URL, scope the chat either way. Lives here because this
+  // view owns the progress UI and busy state.
+  ctx.openAndScan = async (url) => {
+    ctx.showView("chat");
+    const norm = normalizeUrl(url);
+    const existing = await getCaptureByUrl(norm).catch(() => null);
+    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (tab?.id != null && normalizeUrl(tab.url || "") !== norm) {
+      await chrome.tabs.update(tab.id, { url: norm }).catch(() => {});
+    }
+    if (existing) {
+      ctx.setScope({ type: "capture", captureId: existing.id });
+      return;
+    }
+    if (!tab?.id) return;
+    if (!(await hasAllUrls())) await requestAllUrls().catch(() => {});
+    setBusy(true);
+    ctx.cat("scanning");
+    try {
+      await waitTabComplete(tab.id, CRAWL_TIMEOUT_MS);
+      await new Promise((r) => setTimeout(r, CRAWL_SETTLE_MS));
+      const capture = await capturePage(tab.id, tab.windowId, { onPhase });
+      ctx.setScope({ type: "capture", captureId: capture.id });
+      ctx.toast(`Scanned: ${capture.tileCount} tiles.`);
+    } catch (err) {
+      ctx.toast(`Couldn't scan it (${err?.message || err}) — hit Scan page once it loads.`);
+    } finally {
+      hideProgress();
+      setBusy(false);
+      ctx.cat("idle");
+    }
+  };
 
   // Omnibox handoff: stage text in the composer.
   ctx.prefill = (text) => {

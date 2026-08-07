@@ -9,13 +9,13 @@ import { getCaptureByUrl } from "../db/captures.js";
 const HISTORY_MAX = 150;
 const BOOKMARKS_MAX = 300;
 
-function pseudoCapture({ title, url, line }) {
+function pseudoCapture({ title, url, line, ts }) {
   const t = title || url;
   return {
     ...parseUrl(url),
     url,
     title: t,
-    ts: Date.now(),
+    ts: ts || Date.now(),
     status: "ready",
     summary: "",
     domText: "",
@@ -50,8 +50,10 @@ export async function historyCaptures(sinceMs, max = HISTORY_MAX) {
     .map((e) => pseudoCapture({
       title: e.title,
       url: e.url,
+      ts: e.lastVisitTime,
       line: `${e.title || e.url} — ${e.url} — visited ${e.visitCount}x, last ${new Date(e.lastVisitTime).toLocaleString()}`
-    }));
+    }))
+    .sort((a, b) => b.ts - a.ts);
   return crossRef(items);
 }
 
@@ -66,6 +68,7 @@ export async function bookmarkCaptures(max = BOOKMARKS_MAX) {
           items.push(pseudoCapture({
             title: n.title,
             url: n.url,
+            ts: n.dateAdded,
             line: `${n.title || n.url} — ${n.url} — folder: ${path || "/"}`
           }));
         }
@@ -75,6 +78,7 @@ export async function bookmarkCaptures(max = BOOKMARKS_MAX) {
     }
   };
   walk(tree, "");
+  items.sort((a, b) => b.ts - a.ts);
   return crossRef(items);
 }
 
