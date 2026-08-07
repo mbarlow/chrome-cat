@@ -1,5 +1,7 @@
 # chrome-cat
 
+<p align="center"><img src="docs/mascot.gif" width="128" alt="the cat, swishing"></p>
+
 Chat with any page. Locally. The cat helps.
 
 A Chrome side panel that scans the page you're on into letter-size image
