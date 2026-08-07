@@ -4,7 +4,7 @@
 
 import { createAiSession, streamPrompt, sessionUsage } from "./language-model.js";
 import { buildSystemPrompt, buildQuestionPrompt } from "./prompts.js";
-import { topChunks, scopeChunks } from "./retrieval.js";
+import { selectExcerpts } from "./retrieval.js";
 import { QUOTA_REBUILD_AT, MAX_CONTEXT_LINKS, getSettings } from "../shared/constants.js";
 import { normalizeUrl } from "../shared/url.js";
 
@@ -100,7 +100,7 @@ export class ChatSessionManager {
     // ("anything interesting about it?") still land on the right chunks.
     const prev = this.recentTurns[this.recentTurns.length - 1];
     const retrievalQuery = prev ? `${prev.question} ${question}` : question;
-    const excerpts = topChunks(retrievalQuery, scopeChunks(this._captures()));
+    const excerpts = selectExcerpts(retrievalQuery, this._captures());
     const links = LINK_INTENT.test(question) ? this._links() : [];
     const prompt = buildQuestionPrompt(question, excerpts, links);
     const answer = await streamPrompt(session, prompt, (full) => onChunk?.(full));

@@ -79,7 +79,11 @@ async function handleOmniboxEnter(text, disposition) {
   const capture = await getCapture(captureId).catch(() => null);
   if (!capture?.url) return;
   if (disposition === "currentTab") {
-    await chrome.tabs.update({ url: capture.url });
+    // tabs.update without a tabId means "current window's active tab" — a
+    // service worker has no current window, so resolve the tab explicitly.
+    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (tab?.id != null) await chrome.tabs.update(tab.id, { url: capture.url });
+    else await chrome.tabs.create({ url: capture.url });
   } else {
     await chrome.tabs.create({ url: capture.url, active: disposition !== "newBackgroundTab" });
   }

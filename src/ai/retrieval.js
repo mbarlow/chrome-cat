@@ -33,6 +33,15 @@ export function topChunks(question, chunks, k = TOP_CHUNKS) {
     .slice(0, k);
 }
 
+// Excerpt selection for a question. When TF-IDF scores nothing — whole-page
+// asks like "summarize" or "tl;dr" share no tokens with the content — fall
+// back to the lead chunks: the top of the page is the right default context.
+export function selectExcerpts(retrievalQuery, captures, k = TOP_CHUNKS) {
+  const chunks = scopeChunks(captures);
+  const top = topChunks(retrievalQuery, chunks, k);
+  return top.length ? top : chunks.slice(0, k);
+}
+
 // Build the scope's chunk corpus from capture rows (DOM chunks preferred,
 // OCR text as fallback for pages where the DOM was empty, e.g. canvas apps).
 export function scopeChunks(captures) {
