@@ -62,6 +62,11 @@ export async function listCaptures(limit = 200) {
   });
 }
 
+export async function getCaptureByUrl(url) {
+  const db = await openDB();
+  return tx(db, "captures", "readonly", (s) => reqValue(s.index("byUrl").get(normalizeUrl(url))));
+}
+
 export async function listCapturesByDomain(domain) {
   const db = await openDB();
   return tx(db, "captures", "readonly", (s) =>

@@ -19,6 +19,15 @@ export function buildSystemPrompt(scope, base = DEFAULT_SYSTEM_BASE) {
     return `${base}\n\nCurrent page: "${c.title}" (${c.url}), captured ${new Date(c.ts).toISOString().slice(0, 16)}.` +
       (c.summary ? `\nPage summary: ${c.summary}` : "");
   }
+  if (scope.type === "history") {
+    return `${base}\n\nYou are chatting about the user's browser history (${scope.label || "recent"}): ` +
+      `${scope.captures.length} pages. Excerpts carry title, url, and visit info; pages the user ` +
+      "scanned also carry a summary. Answer from the excerpts provided per question.";
+  }
+  if (scope.type === "bookmarks") {
+    return `${base}\n\nYou are chatting about the user's bookmarks: ${scope.captures.length} entries. ` +
+      "Excerpts carry title, url, and folder. Answer from the excerpts provided per question.";
+  }
   if (scope.type === "memory") {
     const byDomain = new Map();
     for (const c of scope.captures) byDomain.set(c.domain, (byDomain.get(c.domain) || 0) + 1);

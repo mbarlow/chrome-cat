@@ -6,16 +6,29 @@ import { escapeHtml } from "../../shared/text.js";
 
 export function createMemoryView(root, ctx) {
   root.innerHTML = `
-    <button class="primary" id="chatAll" style="margin-bottom:8px">chat with everything</button>
+    <div class="label">start a chat with</div>
+    <div class="actions">
+      <button class="primary" id="chatAll">everything captured</button>
+      <button id="chatToday">today's history</button>
+      <button id="chatWeek">last 7 days</button>
+      <button id="chatBookmarks">bookmarks</button>
+    </div>
     <input type="text" id="q" placeholder="search captured domains, paths, summaries…" />
     <div id="results" style="margin-top:8px"></div>
     <div class="label">domains</div>
     <div id="tree"></div>
   `;
-  root.querySelector("#chatAll").addEventListener("click", () => {
-    ctx.setScope({ type: "memory" });
+  const startChat = (scope) => {
+    ctx.setScope(scope);
     ctx.showView("chat");
-  });
+  };
+  const DAY = 86_400_000;
+  root.querySelector("#chatAll").addEventListener("click", () => startChat({ type: "memory" }));
+  root.querySelector("#chatToday").addEventListener("click", () =>
+    startChat({ type: "history", sinceMs: DAY, label: "today" }));
+  root.querySelector("#chatWeek").addEventListener("click", () =>
+    startChat({ type: "history", sinceMs: 7 * DAY, label: "last 7 days" }));
+  root.querySelector("#chatBookmarks").addEventListener("click", () => startChat({ type: "bookmarks" }));
 
   const $ = (id) => root.querySelector(`#${id}`);
 
