@@ -15,6 +15,18 @@
 
 * { box-sizing: border-box; }
 
+/* themed scrollbars — webkit pseudos only; adding scrollbar-color would
+   make Chrome ignore these entirely */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--accent-dim); }
+::-webkit-scrollbar-corner { background: transparent; }
+
 html, body { height: 100%; }
 body {
   margin: 0;
