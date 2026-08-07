@@ -191,6 +191,7 @@ export function createChatView(root, ctx) {
     // the current tab, so a denial isn't fatal here.
     if (!(await hasAllUrls())) await requestAllUrls().catch(() => {});
     setBusy(true);
+    ctx.cat("scanning");
     try {
       const capture = await capturePage(tab.id, tab.windowId, { onPhase });
       ctx.setScope({ type: "capture", captureId: capture.id });
@@ -200,6 +201,7 @@ export function createChatView(root, ctx) {
     } finally {
       hideProgress();
       setBusy(false);
+      ctx.cat("idle");
     }
   }
 
@@ -231,6 +233,7 @@ export function createChatView(root, ctx) {
     view.crawlControl = { cancelled: false };
     $("cancelBtn").hidden = false;
     setBusy(true);
+    ctx.cat("working");
     try {
       const series = await runCrawl(capture, links, view.crawlControl, {
         onProgress: (p) => progress(`crawl ${p.currentUrl || ""}`, p.done, p.total),
@@ -246,6 +249,7 @@ export function createChatView(root, ctx) {
       view.crawlControl = null;
       hideProgress();
       setBusy(false);
+      ctx.cat("idle");
     }
   }
 
@@ -300,6 +304,7 @@ export function createChatView(root, ctx) {
 
     const bubble = msgEl("assistant", "…");
     setBusy(true);
+    ctx.cat("replying");
     try {
       // Visual questions look at the stored scan tiles (capture scope only —
       // a whole series of images won't fit the model's quota).
@@ -322,6 +327,7 @@ export function createChatView(root, ctx) {
     } finally {
       renderUsage();
       setBusy(false);
+      ctx.cat("idle");
     }
   }
 
@@ -347,6 +353,7 @@ export function createChatView(root, ctx) {
       return;
     }
     setBusy(true);
+    ctx.cat("working");
     try {
       const { webhooks } = await getSettings();
       const note = await dispatchSend(cmd, { type: scope.type, id: scopeId }, captures, webhooks);
@@ -356,6 +363,7 @@ export function createChatView(root, ctx) {
       msgEl("note", `send failed: ${err?.message || err}`);
     } finally {
       setBusy(false);
+      ctx.cat("idle");
     }
   }
 
@@ -440,6 +448,7 @@ export function createChatView(root, ctx) {
     }
 
     setBusy(true);
+    ctx.cat("working");
     try {
       const tab = await chrome.tabs.create({ url, active: true });
       msgEl("note", `opening ${url}`);
@@ -454,6 +463,7 @@ export function createChatView(root, ctx) {
     } finally {
       hideProgress();
       setBusy(false);
+      ctx.cat("idle");
     }
   }
 
@@ -495,6 +505,7 @@ export function createChatView(root, ctx) {
   });
   $("sendBtn").addEventListener("click", send);
   $("input").addEventListener("keydown", (e) => {
+    ctx.mascot?.wake();
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       send();
