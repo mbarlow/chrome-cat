@@ -8,13 +8,13 @@ CDN      := https://cdn.jsdelivr.net/npm
 .PHONY: help install icons vendor smoke repo package clean
 
 help:
-	@echo "chrome-chat v$(VERSION) — commands"
+	@echo "chrome-cat v$(VERSION) — commands"
 	@echo ""
 	@echo "  make install   - how to load the unpacked extension in Chrome"
 	@echo "  make icons     - regenerate PNG icons from icons/icon.svg"
 	@echo "  make vendor    - fetch pinned Tesseract.js files into vendor/tesseract/"
 	@echo "  make smoke     - headless boot + OCR + IDB smoke test (needs global playwright)"
-	@echo "  make repo      - git init + create private GitHub repo mbarlow/chrome-chat"
+	@echo "  make repo      - git init + create private GitHub repo mbarlow/chrome-cat"
 	@echo "  make package   - create a versioned .zip for distribution"
 	@echo "  make clean     - remove build artifacts"
 
@@ -49,15 +49,15 @@ smoke:
 
 repo:
 	@test -d .git || git init -b main
-	@gh repo create mbarlow/chrome-chat --private --source=. --push || echo "repo exists or push failed — check gh output"
+	@gh repo create mbarlow/chrome-cat --private --source=. --push || echo "repo exists or push failed — check gh output"
 
 package: clean
-	@zip -r chrome-chat-$(VERSION).zip \
+	@zip -r chrome-cat-$(VERSION).zip \
 		manifest.json src vendor icons \
 		README.md LICENSE \
 		-x "*.DS_Store"
-	@echo "Packaged chrome-chat-$(VERSION).zip"
+	@echo "Packaged chrome-cat-$(VERSION).zip"
 
 clean:
-	@rm -f chrome-chat-*.zip
+	@rm -f chrome-cat-*.zip
 	@echo "Clean."

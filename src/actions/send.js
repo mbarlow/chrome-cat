@@ -134,7 +134,7 @@ export async function toClipboard(payload) {
 
 export async function toMarkdown(payload, captures) {
   const domain = captures[0].domain || "page";
-  const filename = `chrome-chat/${domain}/${slug(captures[0].title)}-${stamp()}.md`;
+  const filename = `chrome-cat/${domain}/${slug(captures[0].title)}-${stamp()}.md`;
   const url = URL.createObjectURL(new Blob([payload.header + payload.text], { type: "text/markdown" }));
   try {
     await chrome.downloads.download({ url, filename });
@@ -205,7 +205,7 @@ async function downloadPdf(payload, captures) {
   if (!blobs.length) throw new Error("no scan tiles in this scope — rescan the page");
   const pdfBlob = await buildPdf(blobs);
   const domain = captures[0].domain || "page";
-  const filename = `chrome-chat/${domain}/${slug(captures[0].title)}-${stamp()}.pdf`;
+  const filename = `chrome-cat/${domain}/${slug(captures[0].title)}-${stamp()}.pdf`;
   const url = URL.createObjectURL(pdfBlob);
   try {
     await chrome.downloads.download({ url, filename });

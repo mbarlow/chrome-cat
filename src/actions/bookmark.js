@@ -44,11 +44,12 @@ function pickFolderByScore(capture, folders) {
 }
 
 async function ensureDefaultFolder() {
-  const existing = (await chrome.bookmarks.search({ title: "chrome-chat" }))
-    .find((n) => !n.url);
-  if (existing) return { id: existing.id, path: "chrome-chat" };
-  const created = await chrome.bookmarks.create({ parentId: "2", title: "chrome-chat" }); // Other Bookmarks
-  return { id: created.id, path: "chrome-chat" };
+  for (const title of ["chrome-cat", "chrome-chat"]) { // old name honored, not duplicated
+    const existing = (await chrome.bookmarks.search({ title })).find((n) => !n.url);
+    if (existing) return { id: existing.id, path: title };
+  }
+  const created = await chrome.bookmarks.create({ parentId: "2", title: "chrome-cat" }); // Other Bookmarks
+  return { id: created.id, path: "chrome-cat" };
 }
 
 // Returns a human note for the chat.

@@ -1,7 +1,7 @@
 // Central knobs. Anything a user might want to tune lives in settings
 // (chrome.storage.local) with these as defaults.
 
-export const DB_NAME = "chrome-chat";
+export const DB_NAME = "chrome-chat"; // pre-rename name kept — changing it orphans existing captures
 export const DB_VERSION = 1;
 
 // Capture

@@ -1,6 +1,6 @@
-# chrome-chat
+# chrome-cat
 
-Chat with any page. Locally. Installs as **Chrome Cat** — the cat helps.
+Chat with any page. Locally. The cat helps.
 
 A Chrome side-panel extension. Scans the page you're on into letter-size
 image tiles, OCRs them, stores everything in IndexedDB, and puts Chrome's
@@ -46,7 +46,7 @@ All three land in IndexedDB. The artifacts tab views and exports them.
   "calendar event for this" drafts the event. "new doc with the ocr" creates
   the Doc with the body on your clipboard — Docs has no URL prefill, so
   clipboard is the adapter. "copy that" and "save the chat as markdown"
-  (lands in `Downloads/chrome-chat/<domain>/`) cover everything else.
+  (lands in `Downloads/chrome-cat/<domain>/`) cover everything else.
   Payloads: the summary, the ocr, the dom text, the links, the chat, or the
   last answer.
 - **Feed your local mesh.** Name a webhook in settings ("vault" →
@@ -75,7 +75,7 @@ All three land in IndexedDB. The artifacts tab views and exports them.
   from here too.
 - **`/bookmark`** files the current page into your existing bookmark tree:
   the local model picks the folder (constrained to real folder ids), keyword
-  overlap picks when the model can't, and a `chrome-chat` folder catches the
+  overlap picks when the model can't, and a `chrome-cat` folder catches the
   rest. Dupes are reported, never re-created.
 
 One more way in — the **omnibox**: type `cc <query>` in the address bar.
@@ -120,8 +120,8 @@ Five minutes from zero to page-summaries landing in a folder.
 
 ```
 curl -fsSL https://bun.sh/install | bash     # 1. get bun (skip if installed)
-git clone git@github.com:mbarlow/chrome-chat # 2. clone
-cd chrome-chat && make vendor && make icons  # 3. build assets
+git clone git@github.com:mbarlow/chrome-cat # 2. clone
+cd chrome-cat && make vendor && make icons  # 3. build assets
                                              # 4. load unpacked (see Install)
 bun run examples/vault-receiver.ts           # 5. start the receiver
 ```
