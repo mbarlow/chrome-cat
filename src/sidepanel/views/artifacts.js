@@ -17,7 +17,10 @@ export function createArtifactsView(root, ctx) {
           <button id="segFullOcr">full OCR</button>
           <button id="segDom">DOM text</button>
         </div>
-        <div class="textpane" id="textpane"></div>
+        <div class="textwrap">
+          <div class="textpane" id="textpane"></div>
+          <button class="mini copybtn" id="copyPane" title="Copy this text to clipboard">⧉</button>
+        </div>
         <div class="label">export</div>
         <div class="actions">
           <button id="expTile">tile .png</button>
@@ -131,6 +134,16 @@ export function createArtifactsView(root, ctx) {
 
   // User-picked (not programmatic) selection acts like an omnibox hit:
   // navigate the current tab to the page and scope the chat to it.
+  $("copyPane").addEventListener("click", async () => {
+    const text = $("textpane").textContent;
+    if (!text.trim() || text.startsWith("(no ")) {
+      ctx.toast("Nothing to copy.");
+      return;
+    }
+    await navigator.clipboard.writeText(text);
+    ctx.toast(`Copied ${text.length.toLocaleString()} chars.`);
+  });
+
   $("capSelect").addEventListener("change", async (e) => {
     await selectCapture(e.target.value);
     if (!view.capture) return;

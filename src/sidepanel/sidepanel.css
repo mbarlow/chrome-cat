@@ -136,7 +136,7 @@ select {
   border: 1px solid var(--line); border-radius: var(--radius);
   padding: 7px; font: 12px var(--mono);
 }
-.rail { display: flex; gap: 6px; overflow-x: auto; padding: 8px 0; flex: 0 0 auto; }
+.rail { display: flex; gap: 6px; overflow-x: auto; padding: 8px 0; margin-bottom: 10px; flex: 0 0 auto; }
 .rail img {
   height: 110px; border: 1px solid var(--line); border-radius: 4px; cursor: pointer; flex: 0 0 auto;
 }
@@ -155,11 +155,17 @@ select {
 }
 .detail { min-width: 0; }
 .detail .label { margin-top: 10px; }
+.textwrap { position: relative; margin-top: 8px; }
 .textpane {
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
-  padding: 8px; font-size: 11px; white-space: pre-wrap; word-break: break-word;
-  max-height: 220px; overflow-y: auto; margin-top: 8px;
+  padding: 8px 28px 8px 8px; font-size: 11px; white-space: pre-wrap; word-break: break-word;
+  max-height: 220px; overflow-y: auto;
 }
+.copybtn {
+  position: absolute; top: 5px; right: 5px;
+  opacity: 0.55; padding: 2px 7px; font-size: 12px; line-height: 1.3;
+}
+.copybtn:hover { opacity: 1; }
 .seg { display: flex; gap: 0; flex-wrap: wrap; }
 .detail .seg button { flex: 1 1 auto; padding: 4px 6px; font-size: 11px; white-space: nowrap; }
 .detail .actions button { padding: 4px 8px; font-size: 11px; }
