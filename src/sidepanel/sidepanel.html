@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>chrome-chat</title>
+  <link rel="stylesheet" href="sidepanel.css" />
+</head>
+<body>
+  <header class="bar">
+    <span class="brand">chrome-chat</span>
+    <span class="dot" id="aiDot"></span>
+    <span id="aiStatus" class="muted">checking model…</span>
+    <button id="aiCheck" class="ghost mini" title="Re-check model availability">check</button>
+  </header>
+
+  <nav id="tabs">
+    <button class="tab active" data-tab="chat">chat</button>
+    <button class="tab" data-tab="artifacts">artifacts</button>
+    <button class="tab" data-tab="memory">memory</button>
+    <button class="tab" data-tab="settings">settings</button>
+  </nav>
+
+  <main>
+    <section class="view active" id="view-chat"></section>
+    <section class="view" id="view-artifacts"></section>
+    <section class="view" id="view-memory"></section>
+    <section class="view" id="view-settings"></section>
+  </main>
+
+  <div id="toast"></div>
+
+  <!-- UMD global for the OCR engine — the one non-module script in the repo -->
+  <script src="../../vendor/tesseract/tesseract.min.js"></script>
+  <script type="module" src="sidepanel.js"></script>
+</body>
+</html>

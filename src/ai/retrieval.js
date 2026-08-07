@@ -1,0 +1,51 @@
+// Per-question retrieval: TF × log-IDF over stored chunks, plain JS.
+// Corpus = the current scope's chunks (one page, or every page in a series).
+
+import { tokenize } from "../shared/text.js";
+import { TOP_CHUNKS } from "../shared/constants.js";
+
+// chunks: [{ text, label? }] -> top-k [{ text, label, score }]
+export function topChunks(question, chunks, k = TOP_CHUNKS) {
+  const qTerms = [...new Set(tokenize(question))];
+  if (!qTerms.length || !chunks.length) return [];
+
+  const docs = chunks.map((c) => {
+    const toks = tokenize(c.text);
+    const tf = new Map();
+    for (const t of toks) tf.set(t, (tf.get(t) || 0) + 1);
+    return { ...c, tf, len: toks.length || 1 };
+  });
+
+  const N = docs.length;
+  const idf = new Map(qTerms.map((t) => {
+    const df = docs.filter((d) => d.tf.has(t)).length;
+    return [t, Math.log(1 + N / (1 + df))];
+  }));
+
+  return docs
+    .map((d) => ({
+      text: d.text,
+      label: d.label,
+      score: qTerms.reduce((s, t) => s + ((d.tf.get(t) || 0) / d.len) * idf.get(t), 0)
+    }))
+    .filter((d) => d.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, k);
+}
+
+// Build the scope's chunk corpus from capture rows (DOM chunks preferred,
+// OCR text as fallback for pages where the DOM was empty, e.g. canvas apps).
+export function scopeChunks(captures) {
+  const out = [];
+  for (const c of captures) {
+    const label = captures.length > 1 ? c.title : null;
+    if (c.domChunks?.length) {
+      for (const text of c.domChunks) out.push({ text, label });
+    } else if (c.ocrText) {
+      for (const text of c.ocrText.split(/\n\n--- page \d+ ---\n\n/).filter(Boolean)) {
+        out.push({ text, label });
+      }
+    }
+  }
+  return out;
+}
