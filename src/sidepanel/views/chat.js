@@ -8,10 +8,13 @@ import { getCapture, getTiles } from "../../db/captures.js";
 import { getSeries } from "../../db/series.js";
 import { getOrCreateChat, appendMessage } from "../../db/chats.js";
 import { answerAboutTiles } from "../../ai/vision.js";
-import { getSettings, MAX_VISION_TILES } from "../../shared/constants.js";
-import { escapeHtml } from "../../shared/text.js";
+import { getSettings, MAX_VISION_TILES, CRAWL_TIMEOUT_MS, CRAWL_SETTLE_MS } from "../../shared/constants.js";
+import { escapeHtml, tokenize } from "../../shared/text.js";
 
 const VISION_INTENT = /\b(images?|pictures?|photos?|screenshots?|charts?|graphs?|diagrams?|logos?|icons?|layout|visual(ly)?|colors?|design|looks? like)\b/i;
+const NAV_INTENT = /^(?:\/open\s*|(?:can you |could you |please )*(?:open|go to|goto|visit|navigate to|take me to)\b)/i;
+const PRONOUNS = new Set(["it", "that", "this", "them", "there"]);
+const URL_RE = /https?:\/\/[^\s)"'\]]+/g;
 
 const PHASE_LABEL = {
   scan: "capturing frames",
@@ -41,7 +44,7 @@ export function createChatView(root, ctx) {
     </div>
     <div class="msgs" id="msgs"></div>
     <div class="composer">
-      <textarea id="input" placeholder="Ask about this page… (/follow crawls its links)"></textarea>
+      <textarea id="input" placeholder="Ask about this page… (/follow crawls links · 'open the pricing page' navigates + scans)"></textarea>
       <button class="primary" id="sendBtn">▶</button>
     </div>
     <div class="usage" id="usage"></div>
@@ -262,6 +265,11 @@ export function createChatView(root, ctx) {
       return;
     }
 
+    if (NAV_INTENT.test(question)) {
+      await navigate(question);
+      return;
+    }
+
     const scope = ctx.getScope();
     if (!scope) {
       ctx.toast("Scan a page first.");
@@ -294,6 +302,93 @@ export function createChatView(root, ctx) {
       bubble.classList.add("note");
     } finally {
       renderUsage();
+      setBusy(false);
+    }
+  }
+
+  // ---- navigation: "open the pricing page" acts, instead of the model
+  // echoing a URL it can't click ----
+
+  function scopeLinks() {
+    const caps = view.captures.length ? view.captures : (view.capture ? [view.capture] : []);
+    return caps.flatMap((c) => c.links || []);
+  }
+
+  function matchLink(target, links) {
+    const terms = tokenize(target);
+    if (!terms.length) return null;
+    let best = null;
+    let bestScore = 0;
+    for (const l of links) {
+      const hay = tokenize(`${l.text} ${l.href.replace(/[^a-z0-9]+/gi, " ")}`);
+      let s = 0;
+      for (const t of terms) if (hay.some((h) => h === t || h.startsWith(t))) s++;
+      if (s > bestScore) { bestScore = s; best = l; }
+    }
+    return best;
+  }
+
+  // "open it" -> the URL from the last assistant message, if it's unambiguous.
+  async function lastMentionedUrl() {
+    const scope = ctx.getScope();
+    if (!scope) return null;
+    const id = scope.type === "capture" ? scope.captureId : scope.seriesId;
+    const chat = await getOrCreateChat(scope.type, id);
+    const lastAssistant = [...chat.messages].reverse().find((m) => m.role === "assistant");
+    const urls = [...new Set(lastAssistant?.content.match(URL_RE) || [])];
+    return urls.length === 1 ? urls[0] : null;
+  }
+
+  function waitTabComplete(tabId, timeoutMs) {
+    return new Promise((resolve, reject) => {
+      const t0 = Date.now();
+      const poll = setInterval(async () => {
+        try {
+          const t = await chrome.tabs.get(tabId);
+          if (t.status === "complete") { clearInterval(poll); resolve(); }
+          else if (Date.now() - t0 > timeoutMs) { clearInterval(poll); reject(new Error("load timeout")); }
+        } catch (err) { clearInterval(poll); reject(err); }
+      }, 400);
+    });
+  }
+
+  async function navigate(question) {
+    const target = question
+      .replace(NAV_INTENT, "")
+      .replace(/\b(please|the|a|an|page|link|site|website)\b/gi, " ")
+      .trim();
+    const scope = ctx.getScope();
+    const scopeId = scope ? (scope.type === "capture" ? scope.captureId : scope.seriesId) : null;
+    msgEl("user", question);
+    if (scope) await appendMessage(scope.type, scopeId, { role: "user", content: question });
+
+    let url = null;
+    const explicit = target.match(URL_RE); // .match, not .test — /g regexes keep lastIndex state
+    if (!target || PRONOUNS.has(target.toLowerCase())) {
+      url = await lastMentionedUrl();
+      if (!url) { msgEl("note", "couldn't tell which link you mean — name it"); return; }
+    } else if (explicit) {
+      url = explicit[0];
+    } else {
+      const link = matchLink(target, scopeLinks());
+      if (!link) { msgEl("note", `no stored link matches "${target}"`); return; }
+      url = link.href;
+    }
+
+    setBusy(true);
+    try {
+      const tab = await chrome.tabs.create({ url, active: true });
+      msgEl("note", `opening ${url}`);
+      await waitTabComplete(tab.id, CRAWL_TIMEOUT_MS);
+      await new Promise((r) => setTimeout(r, CRAWL_SETTLE_MS));
+      const capture = await capturePage(tab.id, tab.windowId, { onPhase });
+      const reply = `Opened and scanned ${url} — chat is now scoped to it.`;
+      await appendMessage("capture", capture.id, { role: "assistant", content: reply });
+      ctx.setScope({ type: "capture", captureId: capture.id });
+    } catch (err) {
+      msgEl("note", `opened ${url}, but couldn't scan it (${err?.message || err}) — hit Scan page`);
+    } finally {
+      hideProgress();
       setBusy(false);
     }
   }
