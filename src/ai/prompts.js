@@ -11,12 +11,21 @@ export const DEFAULT_SYSTEM_BASE =
   "If you can do neither, say so plainly. Be concise.";
 
 // scope: { type: "capture", capture } | { type: "series", series, captures[] }
+//        | { type: "memory", captures[] }
 // base: the (possibly user-edited) system prompt from settings.
 export function buildSystemPrompt(scope, base = DEFAULT_SYSTEM_BASE) {
   if (scope.type === "capture") {
     const c = scope.capture;
     return `${base}\n\nCurrent page: "${c.title}" (${c.url}), captured ${new Date(c.ts).toISOString().slice(0, 16)}.` +
       (c.summary ? `\nPage summary: ${c.summary}` : "");
+  }
+  if (scope.type === "memory") {
+    const byDomain = new Map();
+    for (const c of scope.captures) byDomain.set(c.domain, (byDomain.get(c.domain) || 0) + 1);
+    const domains = [...byDomain.entries()].map(([d, n]) => `${d} (${n})`).join(", ");
+    return `${base}\n\nYou are chatting about the user's entire capture memory: ` +
+      `${scope.captures.length} pages across ${byDomain.size} domains: ${domains}. ` +
+      "Excerpts are labeled with their page title.";
   }
   const lines = scope.captures.map((c, i) =>
     `${i + 1}. "${c.title}" — ${c.url}${c.summary ? ` — ${firstSentence(c.summary)}` : ""}`);

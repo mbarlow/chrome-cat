@@ -6,11 +6,16 @@ import { escapeHtml } from "../../shared/text.js";
 
 export function createMemoryView(root, ctx) {
   root.innerHTML = `
+    <button class="primary" id="chatAll" style="margin-bottom:8px">chat with everything</button>
     <input type="text" id="q" placeholder="search captured domains, paths, summaries…" />
     <div id="results" style="margin-top:8px"></div>
     <div class="label">domains</div>
     <div id="tree"></div>
   `;
+  root.querySelector("#chatAll").addEventListener("click", () => {
+    ctx.setScope({ type: "memory" });
+    ctx.showView("chat");
+  });
 
   const $ = (id) => root.querySelector(`#${id}`);
 

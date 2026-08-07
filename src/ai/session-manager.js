@@ -49,6 +49,10 @@ export class ChatSessionManager {
     return this.scope.type === "capture" ? [this.scope.capture] : this.scope.captures;
   }
 
+  hasScope() {
+    return !!this.scope;
+  }
+
   // Stored page links, deduped across the scope, capped. Only fed to the
   // model when the question asks for links — they cost quota otherwise.
   _links() {

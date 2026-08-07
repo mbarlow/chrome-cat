@@ -62,6 +62,19 @@ All three land in IndexedDB. The artifacts tab views and exports them.
   compose — that last drag is the platform's boundary, not ours). Works on
   a single page or a whole series.
 
+- **Chat with everything.** The memory tab's "chat with everything" button
+  scopes the chat to your entire capture history — retrieval runs across all
+  pages, excerpts labeled by title. Ask questions that span domains.
+- **Read it aloud.** "read it to me", "read the summary" — `chrome.tts`
+  speaks it. "stop" stops.
+
+Two more ways in:
+
+- **Right-click a selection** anywhere → "Chat about this selection" opens
+  the panel with the quote staged in the composer.
+- **Omnibox**: type `cc <query>` in the address bar — suggestions come from
+  your capture memory; picking one opens the panel scoped to that page.
+
 The system prompt is editable in settings. It's your assistant; tune it.
 
 ## Requirements

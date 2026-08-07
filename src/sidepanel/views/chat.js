@@ -4,7 +4,7 @@
 import { capturePage } from "../../capture/pipeline.js";
 import { hasAllUrls, requestAllUrls } from "../../capture/permissions.js";
 import { runCrawl, selectLinks } from "../../crawl/crawler.js";
-import { getCapture, getTiles } from "../../db/captures.js";
+import { getCapture, getTiles, listCaptures } from "../../db/captures.js";
 import { getSeries } from "../../db/series.js";
 import { getOrCreateChat, appendMessage } from "../../db/chats.js";
 import { answerAboutTiles } from "../../ai/vision.js";
@@ -13,6 +13,13 @@ import { getSettings, MAX_VISION_TILES, CRAWL_TIMEOUT_MS, CRAWL_SETTLE_MS } from
 import { escapeHtml, tokenize } from "../../shared/text.js";
 
 const VISION_INTENT = /\b(images?|pictures?|photos?|screenshots?|charts?|graphs?|diagrams?|logos?|icons?|layout|visual(ly)?|colors?|design|looks? like)\b/i;
+
+// One chat thread per scope; memory scope shares thread id 0.
+function scopeIdOf(scope) {
+  if (scope.type === "capture") return scope.captureId;
+  if (scope.type === "series") return scope.seriesId;
+  return 0;
+}
 const NAV_INTENT = /^(?:\/open\s*|(?:can you |could you |please )*(?:open|go to|goto|visit|navigate to|take me to)\b)/i;
 const PRONOUNS = new Set(["it", "that", "this", "them", "there"]);
 const URL_RE = /https?:\/\/[^\s)"'\]]+/g;
@@ -90,6 +97,9 @@ export function createChatView(root, ctx) {
       bar.innerHTML = `<div class="title">${escapeHtml(c.title)}</div><div class="url">${escapeHtml(c.url)} · ${c.tileCount} tiles · ${c.status}</div>`;
     } else if (scope.type === "series" && view.series) {
       bar.innerHTML = `<div class="title">series: ${escapeHtml(view.series.name)}</div><div class="url">${view.captures.length} pages from ${escapeHtml(view.series.domain)}</div>`;
+    } else if (scope.type === "memory") {
+      const domains = new Set(view.captures.map((c) => c.domain));
+      bar.innerHTML = `<div class="title">memory: everything captured</div><div class="url">${view.captures.length} pages across ${domains.size} domains</div>`;
     }
   }
 
@@ -129,8 +139,7 @@ export function createChatView(root, ctx) {
     $("msgs").replaceChildren();
     const scope = ctx.getScope();
     if (!scope) return;
-    const id = scope.type === "capture" ? scope.captureId : scope.seriesId;
-    const chat = await getOrCreateChat(scope.type, id);
+    const chat = await getOrCreateChat(scope.type, scopeIdOf(scope));
     for (const m of chat.messages) msgEl(m.role, m.content);
   }
 
@@ -157,6 +166,9 @@ export function createChatView(root, ctx) {
         view.captures = (await Promise.all(view.series.captureIds.map(getCapture))).filter(Boolean);
         ctx.session.setScope({ type: "series", series: view.series, captures: view.captures });
       }
+    } else if (scope?.type === "memory") {
+      view.captures = (await listCaptures(100)).filter((c) => c.status === "ready");
+      ctx.session.setScope({ type: "memory", captures: view.captures });
     }
     renderScopebar();
     renderStrip();
@@ -282,7 +294,7 @@ export function createChatView(root, ctx) {
       ctx.toast("Scan a page first.");
       return;
     }
-    const scopeId = scope.type === "capture" ? scope.captureId : scope.seriesId;
+    const scopeId = scopeIdOf(scope);
     msgEl("user", question);
     await appendMessage(scope.type, scopeId, { role: "user", content: question });
 
@@ -322,7 +334,7 @@ export function createChatView(root, ctx) {
       msgEl("note", "scan a page first — nothing to send yet");
       return;
     }
-    const scopeId = scope.type === "capture" ? scope.captureId : scope.seriesId;
+    const scopeId = scopeIdOf(scope);
     await appendMessage(scope.type, scopeId, { role: "user", content: question });
     await performSend(cmd, scope, scopeId);
   }
@@ -373,8 +385,7 @@ export function createChatView(root, ctx) {
   async function lastMentionedUrl() {
     const scope = ctx.getScope();
     if (!scope) return null;
-    const id = scope.type === "capture" ? scope.captureId : scope.seriesId;
-    const chat = await getOrCreateChat(scope.type, id);
+    const chat = await getOrCreateChat(scope.type, scopeIdOf(scope));
     const lastAssistant = [...chat.messages].reverse().find((m) => m.role === "assistant");
     const urls = [...new Set(lastAssistant?.content.match(URL_RE) || [])];
     return urls.length === 1 ? urls[0] : null;
@@ -399,7 +410,7 @@ export function createChatView(root, ctx) {
       .replace(/\b(please|the|a|an|page|link|site|website)\b/gi, " ")
       .trim();
     const scope = ctx.getScope();
-    const scopeId = scope ? (scope.type === "capture" ? scope.captureId : scope.seriesId) : null;
+    const scopeId = scope ? scopeIdOf(scope) : null;
     msgEl("user", question);
     if (scope) await appendMessage(scope.type, scopeId, { role: "user", content: question });
 
@@ -489,6 +500,14 @@ export function createChatView(root, ctx) {
       send();
     }
   });
+
+  // Context menu / omnibox handoff: stage text in the composer.
+  ctx.prefill = (text) => {
+    const input = $("input");
+    input.value = text;
+    input.focus();
+    input.setSelectionRange(text.length, text.length);
+  };
 
   return { refresh: loadScope };
 }

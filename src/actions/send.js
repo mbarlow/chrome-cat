@@ -17,7 +17,7 @@ const enc = encodeURIComponent;
 // ---- intent parsing ----
 
 const SEND_START =
-  /^\/?(?:email|mail|send|post|push|copy|save|download|calendar|event|new doc|doc|pdf)\b|^\/?(?:make|create)\b.*\b(?:pdf|docs?|calendar|event)\b/i;
+  /^\/?(?:email|mail|send|post|push|copy|save|download|calendar|event|new doc|doc|pdf|read|speak|say|stop)\b|^\/?(?:make|create)\b.*\b(?:pdf|docs?|calendar|event)\b/i;
 
 // question -> { sink, kind, question } | null. sink may be null ("send this
 // to vault") — dispatch resolves it against the named webhooks, or lists
@@ -28,7 +28,9 @@ export function parseSendCommand(question) {
   if (/\?\s*$/.test(question)) return null;
   if (!SEND_START.test(question)) return null;
   let sink = null;
-  if (/(gmail|e-?mail|^\/?mail\b)/i.test(question)) sink = "email";
+  if (/^\/?stop\b/i.test(question)) sink = "tts-stop";
+  else if (/^\/?(read|speak|say)\b/i.test(question)) sink = "tts";
+  else if (/(gmail|e-?mail|^\/?mail\b)/i.test(question)) sink = "email";
   else if (/(calendar|event)/i.test(question)) sink = "calendar";
   else if (/\bdocs?\b/i.test(question)) sink = "doc";
   else if (/^\/?copy\b|clipboard/i.test(question)) sink = "copy";
@@ -178,12 +180,21 @@ export async function toWebhook(payload, hook, kind) {
   }
 }
 
+// ---- tts: "read it to me" ----
+
+export function toSpeech(payload) {
+  chrome.tts.stop();
+  chrome.tts.speak(payload.text.slice(0, 8000), { rate: 1.05, enqueue: false });
+  return `reading aloud (${Math.min(payload.text.length, 8000).toLocaleString()} chars) — say "stop" to stop`;
+}
+
 const SINKS = {
   email: (p) => toEmail(p),
   calendar: (p) => toCalendar(p),
   doc: (p) => toDoc(p),
   copy: (p) => toClipboard(p),
-  markdown: (p, captures) => toMarkdown(p, captures)
+  markdown: (p, captures) => toMarkdown(p, captures),
+  tts: (p) => toSpeech(p)
 };
 
 // ---- pdf: assemble the letter-aspect tiles, page per tile ----
@@ -230,6 +241,10 @@ export function sinkHelp(webhooks = []) {
 
 // Full dispatch. Returns the note to show, or throws.
 export async function dispatchSend({ sink, kind, question, pdf }, scope, captures, webhooks = []) {
+  if (sink === "tts-stop") {
+    chrome.tts.stop();
+    return "stopped";
+  }
   const payload = await buildPayload(pdf && kind === "last" ? "summary" : kind, scope, captures);
   if (pdf) {
     return sink === "email" ? toEmailPdf(payload, captures) : toPdf(payload, captures);
