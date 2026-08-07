@@ -108,6 +108,8 @@ input:focus, textarea:focus { outline: none; border-color: var(--accent-dim); }
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
   padding: 5px 8px; font-size: 11px;
 }
+/* author display:flex beats the UA's [hidden] display:none — restore it */
+.strip[hidden] { display: none; }
 .strip .pos { color: var(--accent); font-weight: 700; }
 .strip .t { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
 
