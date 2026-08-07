@@ -84,17 +84,23 @@ export async function buildPayload(kind, scope, captures) {
       .map((l) => (l.text ? `- ${l.text} — ${l.href}` : `- ${l.href}`)).join("\n") || "(no links)";
   } else if (kind === "chat") {
     const chat = await getOrCreateChat(scope.type, scope.id);
-    text = chat.messages.map((m) => `**${m.role}:** ${m.content}`).join("\n\n") || "(empty chat)";
+    text = chat.messages.map((m) => {
+      const who = m.role === "user" ? "You" : "Chrome Cat";
+      const when = m.ts ? ` · ${new Date(m.ts).toLocaleString()}` : "";
+      return `**${who}**${when}\n\n${m.content}`;
+    }).join("\n\n---\n\n") || "(empty chat)";
   } else {
     const chat = await getOrCreateChat(scope.type, scope.id);
     const last = [...chat.messages].reverse().find((m) => m.role === "assistant");
     text = last?.content || first.summary || "(nothing to send yet)";
   }
+  const heading = kind === "chat" ? `Chat: ${title}` : title;
   return {
     title,
+    kind,
     url: first.url,
     text,
-    header: `# ${title}\n\n> source: ${first.url}\n> captured: ${new Date(first.ts).toISOString()}\n\n`
+    header: `# ${heading}\n\n> source: ${first.url}\n> captured: ${new Date(first.ts).toISOString()}\n\n`
   };
 }
 
@@ -134,7 +140,8 @@ export async function toClipboard(payload) {
 
 export async function toMarkdown(payload, captures) {
   const domain = captures[0].domain || "page";
-  const filename = `chrome-cat/${domain}/${slug(captures[0].title)}-${stamp()}.md`;
+  const prefix = payload.kind === "chat" ? "chat-" : "";
+  const filename = `chrome-cat/${domain}/${prefix}${slug(captures[0].title)}-${stamp()}.md`;
   const url = URL.createObjectURL(new Blob([payload.header + payload.text], { type: "text/markdown" }));
   try {
     await chrome.downloads.download({ url, filename });

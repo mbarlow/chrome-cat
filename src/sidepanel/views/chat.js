@@ -49,6 +49,7 @@ export function createChatView(root, ctx) {
     <div class="actions">
       <button class="primary" id="scanBtn">Scan page</button>
       <button id="followBtn" disabled>Follow links</button>
+      <button id="dlChatBtn" class="ghost" title="Save this chat as markdown">⤓ chat</button>
       <button id="cancelBtn" class="danger" hidden>Cancel</button>
     </div>
     <div class="progress" id="progress" hidden>
@@ -79,6 +80,7 @@ export function createChatView(root, ctx) {
     view.busy = b;
     $("scanBtn").disabled = b;
     $("followBtn").disabled = b || !view.capture || view.capture.status !== "ready" || !view.capture.links?.length;
+    $("dlChatBtn").disabled = b || !ctx.getScope();
     $("sendBtn").disabled = b;
   }
 
@@ -558,6 +560,14 @@ export function createChatView(root, ctx) {
   // ---- wiring ----
   $("scanBtn").addEventListener("click", scan);
   $("followBtn").addEventListener("click", followLinks);
+  $("dlChatBtn").addEventListener("click", async () => {
+    const scope = ctx.getScope();
+    if (!scope) {
+      ctx.toast("No chat to save yet.");
+      return;
+    }
+    await performSend({ sink: "markdown", kind: "chat" }, scope, scopeIdOf(scope));
+  });
   $("cancelBtn").addEventListener("click", () => {
     if (view.crawlControl) view.crawlControl.cancelled = true;
     ctx.toast("Cancelling after current page…");
