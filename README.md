@@ -80,3 +80,17 @@ Add `vault → http://localhost:8787/inbox` under settings → webhooks, then
 - Everything lives in local IndexedDB — settings shows usage and clears it.
 - No network at runtime. `make vendor` is the only thing that touches a CDN,
   at build time, pinned.
+- Pinned isn't trusted. Every vendored byte is checksummed in
+  `vendor/tesseract/SHA256SUMS`; `make vendor`, `make smoke` and
+  `make package` all verify before they proceed. If upstream changes under
+  a pinned version, the build stops instead of shipping it.
+
+## License
+
+chrome-cat is [MIT](LICENSE).
+
+`vendor/` is not. It ships Tesseract.js, its WebAssembly core, and Google's
+`eng` trained model — all Apache-2.0, redistributed unmodified. The full
+attribution list, the Apache text, and the upstream license banners live in
+[`vendor/tesseract/NOTICE`](vendor/tesseract/NOTICE). Ship the zip, ship
+those files with it — `make package` already does.
