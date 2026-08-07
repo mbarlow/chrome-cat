@@ -81,7 +81,13 @@ input:focus, textarea:focus { outline: none; border-color: var(--accent-dim); }
 .scopebar {
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
   padding: 6px 10px; font-size: 11px; margin-bottom: 8px;
+  display: flex; gap: 10px; align-items: center;
 }
+.scopebar .thumb {
+  width: 34px; height: 44px; object-fit: cover; object-position: top;
+  border: 1px solid var(--line); border-radius: 3px; flex: 0 0 auto; background: #fff;
+}
+.scopebar .scopetext { flex: 1; min-width: 0; }
 .scopebar .title { color: var(--fg); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .scopebar .url { color: var(--muted); word-break: break-all; }
 

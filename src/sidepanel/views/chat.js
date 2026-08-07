@@ -4,7 +4,7 @@
 import { capturePage } from "../../capture/pipeline.js";
 import { hasAllUrls, requestAllUrls } from "../../capture/permissions.js";
 import { runCrawl, selectLinks } from "../../crawl/crawler.js";
-import { getCapture, getTiles, listCaptures } from "../../db/captures.js";
+import { getCapture, getTiles, getFirstTile, listCaptures } from "../../db/captures.js";
 import { getSeries } from "../../db/series.js";
 import { getOrCreateChat, appendMessage } from "../../db/chats.js";
 import { answerAboutTiles } from "../../ai/vision.js";
@@ -68,7 +68,8 @@ export function createChatView(root, ctx) {
     series: null,    // series row when navigating a series
     captures: [],    // series member rows (series scope)
     crawlControl: null,
-    busy: false
+    busy: false,
+    thumbUrl: null   // scopebar thumbnail blob URL, revoked on re-render
   };
 
   // ---- rendering ----
@@ -89,26 +90,45 @@ export function createChatView(root, ctx) {
   const hideProgress = () => { $("progress").hidden = true; };
   const onPhase = (phase, done, total) => progress(PHASE_LABEL[phase] || phase, done, total);
 
-  function renderScopebar() {
+  async function renderScopebar() {
     const bar = $("scopebar");
     const scope = ctx.getScope();
+    if (view.thumbUrl) {
+      URL.revokeObjectURL(view.thumbUrl);
+      view.thumbUrl = null;
+    }
     if (!scope) {
       bar.innerHTML = `<span class="muted">No page scanned yet — hit Scan on any page.</span>`;
       return;
     }
+    let text = "";
     if (scope.type === "capture" && view.capture) {
       const c = view.capture;
-      bar.innerHTML = `<div class="title">${escapeHtml(c.title)}</div><div class="url">${escapeHtml(c.url)} · ${c.tileCount} tiles · ${c.status}</div>`;
+      text = `<div class="title">${escapeHtml(c.title)}</div><div class="url">${escapeHtml(c.url)} · ${c.tileCount} tiles · ${c.status}</div>`;
     } else if (scope.type === "series" && view.series) {
-      bar.innerHTML = `<div class="title">series: ${escapeHtml(view.series.name)}</div><div class="url">${view.captures.length} pages from ${escapeHtml(view.series.domain)}</div>`;
+      text = `<div class="title">series: ${escapeHtml(view.series.name)}</div><div class="url">${view.captures.length} pages from ${escapeHtml(view.series.domain)}</div>`;
     } else if (scope.type === "memory") {
       const domains = new Set(view.captures.map((c) => c.domain));
-      bar.innerHTML = `<div class="title">memory: everything captured</div><div class="url">${view.captures.length} pages across ${domains.size} domains</div>`;
+      text = `<div class="title">memory: everything captured</div><div class="url">${view.captures.length} pages across ${domains.size} domains</div>`;
     } else if (scope.type === "history") {
-      bar.innerHTML = `<div class="title">history: ${escapeHtml(scope.label || "recent")}</div><div class="url">${view.captures.length} pages from your browsing history</div>`;
+      text = `<div class="title">history: ${escapeHtml(scope.label || "recent")}</div><div class="url">${view.captures.length} pages from your browsing history</div>`;
     } else if (scope.type === "bookmarks") {
-      bar.innerHTML = `<div class="title">bookmarks</div><div class="url">${view.captures.length} bookmarked pages</div>`;
+      text = `<div class="title">bookmarks</div><div class="url">${view.captures.length} bookmarked pages</div>`;
     }
+    bar.innerHTML = `<div class="scopetext">${text}</div>`;
+
+    // First-tile thumbnail for scopes that have real scans.
+    const thumbSource = scope.type === "capture" ? view.capture
+      : scope.type === "series" ? view.captures.find((c) => c.tileCount > 0)
+      : null;
+    if (!thumbSource) return;
+    const tile = await getFirstTile(thumbSource.id).catch(() => null);
+    if (!tile?.blob || ctx.getScope() !== scope) return; // scope moved on
+    view.thumbUrl = URL.createObjectURL(tile.blob);
+    const img = document.createElement("img");
+    img.className = "thumb";
+    img.src = view.thumbUrl;
+    bar.prepend(img);
   }
 
   function renderStrip() {

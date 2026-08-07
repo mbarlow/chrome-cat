@@ -85,6 +85,12 @@ export async function updateTile(tile) {
   return tile;
 }
 
+// First tile only — thumbnails shouldn't load every blob.
+export async function getFirstTile(captureId) {
+  const db = await openDB();
+  return tx(db, "tiles", "readonly", (s) => reqValue(s.index("byCapture").get([captureId, 0])));
+}
+
 // Ordered by seq (compound index key).
 export async function getTiles(captureId) {
   const db = await openDB();
