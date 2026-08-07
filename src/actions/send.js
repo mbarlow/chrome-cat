@@ -5,6 +5,8 @@
 // for everything else (Docs renders to canvas — injection is a dead end).
 
 import { getOrCreateChat } from "../db/chats.js";
+import { getTiles } from "../db/captures.js";
+import { buildPdf } from "./pdf.js";
 import { WEBHOOK_TIMEOUT_MS } from "../shared/constants.js";
 
 // Composer URLs cap around 8k; leave room for encoding overhead.
@@ -14,7 +16,8 @@ const enc = encodeURIComponent;
 
 // ---- intent parsing ----
 
-const SEND_START = /^\/?(?:email|mail|send|post|push|copy|save|download|calendar|event|new doc|doc)\b/i;
+const SEND_START =
+  /^\/?(?:email|mail|send|post|push|copy|save|download|calendar|event|new doc|doc|pdf)\b|^\/?(?:make|create)\b.*\b(?:pdf|docs?|calendar|event)\b/i;
 
 // question -> { sink, kind, question } | null. sink may be null ("send this
 // to vault") — dispatch resolves it against the named webhooks, or lists
@@ -30,7 +33,10 @@ export function parseSendCommand(question) {
   else if (/\bdocs?\b/i.test(question)) sink = "doc";
   else if (/^\/?copy\b|clipboard/i.test(question)) sink = "copy";
   else if (/markdown|\bmd\b|^\/?(save|download)\b/i.test(question)) sink = "markdown";
-  return { sink, kind: parsePayloadKind(question), question };
+  // pdf composes: "save as pdf" downloads it, "email the pdf version"
+  // downloads + opens the draft to drag it into.
+  const pdf = /\bpdf\b/i.test(question);
+  return { sink, kind: parsePayloadKind(question), question, pdf };
 }
 
 // "send the summary to vault" -> the webhook named "vault".
@@ -180,6 +186,42 @@ const SINKS = {
   markdown: (p, captures) => toMarkdown(p, captures)
 };
 
+// ---- pdf: assemble the letter-aspect tiles, page per tile ----
+
+async function downloadPdf(payload, captures) {
+  const tileSets = await Promise.all(captures.map((c) => getTiles(c.id)));
+  const blobs = tileSets.flat().map((t) => t.blob);
+  if (!blobs.length) throw new Error("no scan tiles in this scope — rescan the page");
+  const pdfBlob = await buildPdf(blobs);
+  const domain = captures[0].domain || "page";
+  const filename = `chrome-chat/${domain}/${slug(captures[0].title)}-${stamp()}.pdf`;
+  const url = URL.createObjectURL(pdfBlob);
+  try {
+    await chrome.downloads.download({ url, filename });
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  }
+  return { filename, pages: blobs.length };
+}
+
+export async function toPdf(payload, captures) {
+  const { filename, pages } = await downloadPdf(payload, captures);
+  return `saved ${filename} (${pages} pages)`;
+}
+
+// No API can attach a file to Gmail compose — the draft opens prefilled and
+// the fresh PDF sits at the top of Downloads, one drag away.
+export async function toEmailPdf(payload, captures) {
+  const { filename, pages } = await downloadPdf(payload, captures);
+  const body =
+    `${payload.text.slice(0, 1500)}\n\n` +
+    `[PDF scan: ${pages} pages — saved to Downloads/${filename}. Drag it into this draft to attach.]\n\n— ${payload.url}`;
+  await chrome.tabs.create({
+    url: `https://mail.google.com/mail/?view=cm&fs=1&su=${enc(payload.title)}&body=${enc(body)}`
+  });
+  return `saved ${filename} (${pages} pages) and opened Gmail — drag the PDF from Downloads into the draft`;
+}
+
 export function sinkHelp(webhooks = []) {
   const hooks = webhooks.length ? ` / ${webhooks.map((w) => w.name).join(" / ")}` : "";
   return `where to? try: email / calendar / doc / copy / save as markdown${hooks} — ` +
@@ -187,13 +229,15 @@ export function sinkHelp(webhooks = []) {
 }
 
 // Full dispatch. Returns the note to show, or throws.
-export async function dispatchSend({ sink, kind, question }, scope, captures, webhooks = []) {
+export async function dispatchSend({ sink, kind, question, pdf }, scope, captures, webhooks = []) {
+  const payload = await buildPayload(pdf && kind === "last" ? "summary" : kind, scope, captures);
+  if (pdf) {
+    return sink === "email" ? toEmailPdf(payload, captures) : toPdf(payload, captures);
+  }
   if (!sink) {
     const hook = matchWebhook(question || "", webhooks);
     if (!hook) return sinkHelp(webhooks);
-    const payload = await buildPayload(kind, scope, captures);
     return toWebhook(payload, hook, kind);
   }
-  const payload = await buildPayload(kind, scope, captures);
   return SINKS[sink](payload, captures);
 }

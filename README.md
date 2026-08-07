@@ -53,7 +53,14 @@ All three land in IndexedDB. The artifacts tab views and exports them.
   `http://localhost:8787/inbox`), then "send the summary to vault" POSTs
   `{source, kind, title, url, ts, content}` as JSON. Localhost needs no
   extra permission; remote URLs use the all-sites grant. A ten-line receiver
-  turns this into an Obsidian inbox, a message bus, anything.
+  turns this into an Obsidian inbox, a message bus, anything — see the
+  quickstart below.
+- **PDF from the scans.** "save as pdf" assembles the letter-aspect tiles
+  into a real PDF, one page per tile — pixel-true, built by hand, no
+  library. It composes: "email the pdf version" saves the PDF and opens the
+  Gmail draft with the summary; you drag the file in (no API can attach to
+  compose — that last drag is the platform's boundary, not ours). Works on
+  a single page or a whole series.
 
 The system prompt is editable in settings. It's your assistant; tune it.
 
@@ -72,6 +79,29 @@ make smoke    # headless boot + OCR + IDB check (needs global playwright)
 ```
 
 Load unpacked from the repo root at `chrome://extensions/`, Developer mode on.
+
+## Webhook receiver quickstart
+
+Five minutes from zero to page-summaries landing in a folder.
+
+```
+curl -fsSL https://bun.sh/install | bash     # 1. get bun (skip if installed)
+git clone git@github.com:mbarlow/chrome-chat # 2. clone
+cd chrome-chat && make vendor && make icons  # 3. build assets
+                                             # 4. load unpacked (see Install)
+bun run examples/vault-receiver.ts           # 5. start the receiver
+```
+
+Then in the side panel:
+
+```
+settings → webhooks → add:  vault  http://localhost:8787/inbox
+chat → scan a page → "send the summary to vault"
+```
+
+Every send lands as a markdown file in `./inbox/` — set `INBOX_DIR` to your
+Obsidian vault's inbox and the browser feeds your notes. The receiver is 30
+lines; swap `Bun.write` for anything: message bus, database, another API.
 
 ## Architecture
 
