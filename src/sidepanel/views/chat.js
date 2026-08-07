@@ -8,6 +8,7 @@ import { getCapture, getTiles } from "../../db/captures.js";
 import { getSeries } from "../../db/series.js";
 import { getOrCreateChat, appendMessage } from "../../db/chats.js";
 import { answerAboutTiles } from "../../ai/vision.js";
+import { parseSendCommand, parsePayloadKind, dispatchSend } from "../../actions/send.js";
 import { getSettings, MAX_VISION_TILES, CRAWL_TIMEOUT_MS, CRAWL_SETTLE_MS } from "../../shared/constants.js";
 import { escapeHtml, tokenize } from "../../shared/text.js";
 
@@ -265,6 +266,12 @@ export function createChatView(root, ctx) {
       return;
     }
 
+    const sendCmd = parseSendCommand(question);
+    if (sendCmd) {
+      await handleSend(question, sendCmd);
+      return;
+    }
+
     if (NAV_INTENT.test(question)) {
       await navigate(question);
       return;
@@ -302,6 +309,39 @@ export function createChatView(root, ctx) {
       bubble.classList.add("note");
     } finally {
       renderUsage();
+      setBusy(false);
+    }
+  }
+
+  // ---- outbound: "email the summary", "copy that", "save as markdown" ----
+
+  async function handleSend(question, cmd) {
+    const scope = ctx.getScope();
+    msgEl("user", question);
+    if (!scope) {
+      msgEl("note", "scan a page first — nothing to send yet");
+      return;
+    }
+    const scopeId = scope.type === "capture" ? scope.captureId : scope.seriesId;
+    await appendMessage(scope.type, scopeId, { role: "user", content: question });
+    await performSend(cmd, scope, scopeId);
+  }
+
+  // Dispatch only — caller has already recorded the user message.
+  async function performSend(cmd, scope, scopeId) {
+    const captures = view.captures.length ? view.captures : (view.capture ? [view.capture] : []);
+    if (!captures.length) {
+      msgEl("note", "current scope has no capture rows — rescan the page");
+      return;
+    }
+    setBusy(true);
+    try {
+      const note = await dispatchSend(cmd, { type: scope.type, id: scopeId }, captures);
+      msgEl("note", note);
+      await appendMessage(scope.type, scopeId, { role: "assistant", content: `[${cmd.sink || "send"}] ${note}` });
+    } catch (err) {
+      msgEl("note", `send failed: ${err?.message || err}`);
+    } finally {
       setBusy(false);
     }
   }
@@ -371,7 +411,19 @@ export function createChatView(root, ctx) {
       url = explicit[0];
     } else {
       const link = matchLink(target, scopeLinks());
-      if (!link) { msgEl("note", `no stored link matches "${target}"`); return; }
+      if (!link) {
+        // "open gmail and paste the summary" — composer apps aren't page
+        // links; route to the matching sink instead of failing.
+        const sink = /\bgmail|google mail\b/i.test(target) ? "email"
+          : /\bcalendar\b/i.test(target) ? "calendar"
+          : /\bdocs?\b/i.test(target) ? "doc" : null;
+        if (sink && scope) {
+          await performSend({ sink, kind: parsePayloadKind(question) }, scope, scopeId);
+          return;
+        }
+        msgEl("note", `no stored link matches "${target}"`);
+        return;
+      }
       url = link.href;
     }
 

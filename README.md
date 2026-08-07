@@ -42,6 +42,13 @@ All three land in IndexedDB. The artifacts tab views and exports them.
 - **Crawl.** `/follow` walks the page's links in a dedicated background
   window, one by one, building a series. Step through it with ◀ ▶ or chat
   across the whole set with `all`.
+- **Send it somewhere.** "email the summary" opens Gmail compose, prefilled.
+  "calendar event for this" drafts the event. "new doc with the ocr" creates
+  the Doc with the body on your clipboard — Docs has no URL prefill, so
+  clipboard is the adapter. "copy that" and "save the chat as markdown"
+  (lands in `Downloads/chrome-chat/<domain>/`) cover everything else.
+  Payloads: the summary, the ocr, the dom text, the links, the chat, or the
+  last answer.
 
 The system prompt is editable in settings. It's your assistant; tune it.
 
