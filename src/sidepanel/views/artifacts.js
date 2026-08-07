@@ -2,6 +2,7 @@
 // export tiles/texts/JSON. Blob URLs are revoked on every re-render.
 
 import { listCaptures, getTiles } from "../../db/captures.js";
+import { normalizeUrl } from "../../shared/url.js";
 
 export function createArtifactsView(root, ctx) {
   root.innerHTML = `
@@ -128,7 +129,17 @@ export function createArtifactsView(root, ctx) {
     renderText();
   }
 
-  $("capSelect").addEventListener("change", (e) => selectCapture(e.target.value));
+  // User-picked (not programmatic) selection acts like an omnibox hit:
+  // navigate the current tab to the page and scope the chat to it.
+  $("capSelect").addEventListener("change", async (e) => {
+    await selectCapture(e.target.value);
+    if (!view.capture) return;
+    ctx.setScope({ type: "capture", captureId: view.capture.id });
+    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (tab?.id != null && normalizeUrl(tab.url || "") !== view.capture.url) {
+      await chrome.tabs.update(tab.id, { url: view.capture.url }).catch(() => {});
+    }
+  });
   $("segOcr").addEventListener("click", () => setMode("ocr"));
   $("segFullOcr").addEventListener("click", () => setMode("fullocr"));
   $("segDom").addEventListener("click", () => setMode("dom"));
