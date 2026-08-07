@@ -4,12 +4,14 @@
 // folder. Dupes are reported, never re-created.
 
 import { listBookmarkFolders } from "../sources/browser.js";
+import { getAiAvailability, createAiSession } from "../ai/language-model.js";
 import { tokenize } from "../shared/text.js";
 
 async function pickFolderWithModel(capture, folders) {
-  if (typeof LanguageModel === "undefined") return null;
-  if ((await LanguageModel.availability()) !== "available") return null;
-  const session = await LanguageModel.create();
+  // Shared wrapper sets expectedInputs/Outputs languages — a bare
+  // LanguageModel.create() draws "no output language specified" warnings.
+  if ((await getAiAvailability()).state !== "available") return null;
+  const session = await createAiSession();
   try {
     const list = folders.map((f) => `${f.id}: ${f.path}`).join("\n");
     const out = await session.prompt(

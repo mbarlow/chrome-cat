@@ -14,7 +14,7 @@ chrome.runtime.onInstalled.addListener(() => {
 // navigates to that page AND scopes the chat to its capture ----
 
 chrome.omnibox.setDefaultSuggestion({
-  description: "Search your chrome-chat memory"
+  description: "Search your Chrome Cat memory"
 });
 
 chrome.omnibox.onInputChanged.addListener(async (text, suggest) => {

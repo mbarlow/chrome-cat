@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Chrome Chat",
-  "description": "Scan any page into letter-size OCR'd tiles, then chat about it with the browser's built-in model. Everything stays local.",
+  "name": "Chrome Cat",
+  "description": "Scan any page into letter-size OCR'd tiles, then chat about it with the browser's built-in model. Everything stays local. The cat helps.",
   "version": "0.2.0",
   "minimum_chrome_version": "138",
   "permissions": ["sidePanel", "activeTab", "scripting", "storage", "tabs", "downloads", "tts", "history", "bookmarks"],

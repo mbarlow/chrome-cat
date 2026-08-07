@@ -1,6 +1,6 @@
 # chrome-chat
 
-Chat with any page. Locally.
+Chat with any page. Locally. Installs as **Chrome Cat** — the cat helps.
 
 A Chrome side-panel extension. Scans the page you're on into letter-size
 image tiles, OCRs them, stores everything in IndexedDB, and puts Chrome's
