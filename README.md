@@ -18,8 +18,13 @@ chat across the whole set. Nothing leaves the machine.
    IndexedDB (`chrome-chat` database) — inspect or export them from the
    artifacts tab.
 3. **Chat** — after a scan, ask questions. A summary is generated per capture;
-   each question retrieves the most relevant text chunks (TF-IDF, plain JS)
-   and streams an answer from the local model.
+   each question (plus the previous turn, so follow-ups stay on topic)
+   retrieves the most relevant text chunks (TF-IDF, plain JS) and streams an
+   answer from the local model. Page facts stay grounded in captured content;
+   general-knowledge answers are labeled "(general knowledge)". Questions
+   about links get the page's stored URLs; visual questions ("any images?",
+   "what does the chart show?") are answered by feeding the scan tiles to the
+   multimodal model. The system prompt is editable in settings.
 4. **Follow links** — type `/follow` (or hit the button). A dedicated
    unfocused window walks the page's links one by one, running the same
    scan → OCR → summarize pipeline per page into a **series**. Step through

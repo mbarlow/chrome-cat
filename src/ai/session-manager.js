@@ -92,7 +92,11 @@ export class ChatSessionManager {
       }
     }
 
-    const excerpts = topChunks(question, scopeChunks(this._captures()));
+    // Fold the previous question into retrieval so bare follow-ups
+    // ("anything interesting about it?") still land on the right chunks.
+    const prev = this.recentTurns[this.recentTurns.length - 1];
+    const retrievalQuery = prev ? `${prev.question} ${question}` : question;
+    const excerpts = topChunks(retrievalQuery, scopeChunks(this._captures()));
     const links = LINK_INTENT.test(question) ? this._links() : [];
     const prompt = buildQuestionPrompt(question, excerpts, links);
     const answer = await streamPrompt(session, prompt, (full) => onChunk?.(full));

@@ -26,6 +26,7 @@ export const CRAWL_SETTLE_MS = 1200;  // SPA hydration after tab "complete"
 export const DEFAULT_MAX_LINKS = 20;
 
 export const MAX_CONTEXT_LINKS = 30;  // [Page links] block cap per question
+export const MAX_VISION_TILES = 3;    // tiles fed to a multimodal question (quota)
 
 // chrome.storage.local keys
 export const STORAGE_KEYS = {

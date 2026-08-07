@@ -4,11 +4,14 @@
 import { capturePage } from "../../capture/pipeline.js";
 import { hasAllUrls, requestAllUrls } from "../../capture/permissions.js";
 import { runCrawl, selectLinks } from "../../crawl/crawler.js";
-import { getCapture } from "../../db/captures.js";
+import { getCapture, getTiles } from "../../db/captures.js";
 import { getSeries } from "../../db/series.js";
 import { getOrCreateChat, appendMessage } from "../../db/chats.js";
-import { getSettings } from "../../shared/constants.js";
+import { answerAboutTiles } from "../../ai/vision.js";
+import { getSettings, MAX_VISION_TILES } from "../../shared/constants.js";
 import { escapeHtml } from "../../shared/text.js";
+
+const VISION_INTENT = /\b(images?|pictures?|photos?|screenshots?|charts?|graphs?|diagrams?|logos?|icons?|layout|visual(ly)?|colors?|design|looks? like)\b/i;
 
 const PHASE_LABEL = {
   scan: "capturing frames",
@@ -271,6 +274,12 @@ export function createChatView(root, ctx) {
     const bubble = msgEl("assistant", "…");
     setBusy(true);
     try {
+      // Visual questions look at the stored scan tiles (capture scope only —
+      // a whole series of images won't fit the model's quota).
+      if (VISION_INTENT.test(question) && scope.type === "capture") {
+        const done = await askVision(question, scope, bubble);
+        if (done) return;
+      }
       const { answer, trimmed } = await ctx.session.ask(question, {
         onChunk: (full) => {
           bubble.textContent = full;
@@ -286,6 +295,30 @@ export function createChatView(root, ctx) {
     } finally {
       renderUsage();
       setBusy(false);
+    }
+  }
+
+  // Returns true when the vision path answered; false = fall through to text.
+  async function askVision(question, scope, bubble) {
+    const tiles = await getTiles(scope.captureId);
+    if (!tiles.length) return false;
+    bubble.textContent = "👁 looking at the page…";
+    try {
+      const used = tiles.slice(0, MAX_VISION_TILES);
+      const answer = await answerAboutTiles(question, used.map((t) => t.blob), {
+        onDownload: ctx.showDownload
+      });
+      bubble.textContent = answer;
+      if (tiles.length > used.length) {
+        msgEl("note", `looked at the first ${used.length} of ${tiles.length} tiles`);
+      }
+      await appendMessage(scope.type, scope.captureId, { role: "assistant", content: answer });
+      $("msgs").scrollTop = $("msgs").scrollHeight;
+      return true;
+    } catch (err) {
+      msgEl("note", `visual look failed (${err?.message || err}) — answering from text`);
+      bubble.textContent = "…";
+      return false;
     }
   }
 
