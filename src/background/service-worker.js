@@ -1,32 +1,17 @@
 // Still minimal (chrome-packetlens rule): heavy work lives in the side
-// panel. The worker owns only what MUST be event-driven — panel behavior,
-// the context menu, and omnibox search. Handoff to the panel goes through
+// panel. The worker owns only what MUST be event-driven — panel behavior
+// and omnibox search. Handoff to the panel goes through
 // chrome.storage.session ("pending" keys the panel picks up on open).
 
 import { searchMemory } from "../db/memory.js";
+import { getCapture } from "../db/captures.js";
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
-  chrome.contextMenus.create({
-    id: "cc-selection",
-    title: "Chat about this selection",
-    contexts: ["selection"]
-  });
 });
 
-// ---- right-click a selection -> panel opens with it staged ----
-
-chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId !== "cc-selection") return;
-  await chrome.storage.session.set({
-    pendingSelection: { text: (info.selectionText || "").slice(0, 500), url: tab?.url || "", ts: Date.now() }
-  });
-  if (tab?.windowId != null) {
-    try { await chrome.sidePanel.open({ windowId: tab.windowId }); } catch { /* needs gesture */ }
-  }
-});
-
-// ---- omnibox: "cc <query>" searches the capture memory ----
+// ---- omnibox: "cc <query>" searches the capture memory; picking a result
+// navigates to that page AND scopes the chat to its capture ----
 
 chrome.omnibox.setDefaultSuggestion({
   description: "Search your chrome-chat memory"
@@ -45,12 +30,23 @@ chrome.omnibox.onInputChanged.addListener(async (text, suggest) => {
   }
 });
 
-chrome.omnibox.onInputEntered.addListener(async (text) => {
+chrome.omnibox.onInputEntered.addListener(async (text, disposition) => {
   const m = text.match(/^capture:(\d+)$/);
-  const pendingScope = m
-    ? { type: "capture", captureId: Number(m[1]) }
-    : { type: "memory", query: text };
-  await chrome.storage.session.set({ pendingScope });
+  if (!m) {
+    // Plain text entered — memory-wide chat with the query staged.
+    await chrome.storage.session.set({ pendingScope: { type: "memory", query: text } });
+  } else {
+    const captureId = Number(m[1]);
+    await chrome.storage.session.set({ pendingScope: { type: "capture", captureId } });
+    const capture = await getCapture(captureId).catch(() => null);
+    if (capture?.url) {
+      if (disposition === "currentTab") {
+        await chrome.tabs.update({ url: capture.url });
+      } else {
+        await chrome.tabs.create({ url: capture.url, active: disposition !== "newBackgroundTab" });
+      }
+    }
+  }
   const win = await chrome.windows.getLastFocused();
   try { await chrome.sidePanel.open({ windowId: win.id }); } catch { /* open manually */ }
 });

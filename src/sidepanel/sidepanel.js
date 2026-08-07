@@ -88,27 +88,20 @@ createArtifactsView(document.getElementById("view-artifacts"), ctx);
 createMemoryView(document.getElementById("view-memory"), ctx);
 createSettingsView(document.getElementById("view-settings"), ctx);
 
-// ---- worker handoff: context-menu selections and omnibox jumps land in
-// chrome.storage.session; pick them up on open and while open ----
+// ---- worker handoff: omnibox jumps land in chrome.storage.session;
+// pick them up on open and while open ----
 
 async function applyPending() {
-  const { pendingSelection, pendingScope } =
-    await chrome.storage.session.get(["pendingSelection", "pendingScope"]);
-  if (pendingScope) {
-    await chrome.storage.session.remove("pendingScope");
-    if (pendingScope.type === "capture") {
-      setScope({ type: "capture", captureId: pendingScope.captureId });
-    } else {
-      setScope({ type: "memory" });
-      if (pendingScope.query) ctx.prefill?.(pendingScope.query);
-    }
-    showView("chat");
+  const { pendingScope } = await chrome.storage.session.get("pendingScope");
+  if (!pendingScope) return;
+  await chrome.storage.session.remove("pendingScope");
+  if (pendingScope.type === "capture") {
+    setScope({ type: "capture", captureId: pendingScope.captureId });
+  } else {
+    setScope({ type: "memory" });
+    if (pendingScope.query) ctx.prefill?.(pendingScope.query);
   }
-  if (pendingSelection) {
-    await chrome.storage.session.remove("pendingSelection");
-    showView("chat");
-    ctx.prefill?.(`"${pendingSelection.text}" — `);
-  }
+  showView("chat");
 }
 
 chrome.storage.session.onChanged.addListener(() => { applyPending(); });

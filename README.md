@@ -68,12 +68,10 @@ All three land in IndexedDB. The artifacts tab views and exports them.
 - **Read it aloud.** "read it to me", "read the summary" — `chrome.tts`
   speaks it. "stop" stops.
 
-Two more ways in:
-
-- **Right-click a selection** anywhere → "Chat about this selection" opens
-  the panel with the quote staged in the composer.
-- **Omnibox**: type `cc <query>` in the address bar — suggestions come from
-  your capture memory; picking one opens the panel scoped to that page.
+One more way in — the **omnibox**: type `cc <query>` in the address bar.
+Suggestions come from your capture memory; picking one navigates to that
+page and opens the panel with its chat scoped. Plain enter drops you into
+memory-wide chat with the query staged.
 
 The system prompt is editable in settings. It's your assistant; tune it.
 

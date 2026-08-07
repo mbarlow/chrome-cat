@@ -501,7 +501,7 @@ export function createChatView(root, ctx) {
     }
   });
 
-  // Context menu / omnibox handoff: stage text in the composer.
+  // Omnibox handoff: stage text in the composer.
   ctx.prefill = (text) => {
     const input = $("input");
     input.value = text;
