@@ -8,19 +8,23 @@ export function createArtifactsView(root, ctx) {
     <div class="label">capture</div>
     <select id="capSelect"></select>
     <div class="rail" id="rail"></div>
-    <div class="tileview" id="tileview"></div>
-    <div class="seg" style="margin:8px 0">
-      <button id="segOcr" class="active">tile OCR</button>
-      <button id="segFullOcr">full OCR</button>
-      <button id="segDom">DOM text</button>
-    </div>
-    <div class="textpane" id="textpane"></div>
-    <div class="label">export</div>
-    <div class="actions">
-      <button id="expTile">tile .png</button>
-      <button id="expOcr">ocr .txt</button>
-      <button id="expDom">dom .txt</button>
-      <button id="expJson">capture .json</button>
+    <div class="artgrid">
+      <div class="tileview" id="tileview"></div>
+      <div class="detail">
+        <div class="seg">
+          <button id="segOcr" class="active">tile OCR</button>
+          <button id="segFullOcr">full OCR</button>
+          <button id="segDom">DOM text</button>
+        </div>
+        <div class="textpane" id="textpane"></div>
+        <div class="label">export</div>
+        <div class="actions">
+          <button id="expTile">tile .png</button>
+          <button id="expOcr">ocr .txt</button>
+          <button id="expDom">dom .txt</button>
+          <button id="expJson">capture .json</button>
+        </div>
+      </div>
     </div>
   `;
 
