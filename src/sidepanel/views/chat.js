@@ -9,17 +9,21 @@ import { getSeries } from "../../db/series.js";
 import { getOrCreateChat, appendMessage } from "../../db/chats.js";
 import { answerAboutTiles } from "../../ai/vision.js";
 import { parseSendCommand, parsePayloadKind, dispatchSend } from "../../actions/send.js";
+import { smartBookmark } from "../../actions/bookmark.js";
+import { historyCaptures, bookmarkCaptures } from "../../sources/browser.js";
 import { getSettings, MAX_VISION_TILES, CRAWL_TIMEOUT_MS, CRAWL_SETTLE_MS } from "../../shared/constants.js";
 import { escapeHtml, tokenize } from "../../shared/text.js";
 
 const VISION_INTENT = /\b(images?|pictures?|photos?|screenshots?|charts?|graphs?|diagrams?|logos?|icons?|layout|visual(ly)?|colors?|design|looks? like)\b/i;
 
-// One chat thread per scope; memory scope shares thread id 0.
+// One chat thread per scope; memory/history/bookmarks each share thread id 0.
 function scopeIdOf(scope) {
   if (scope.type === "capture") return scope.captureId;
   if (scope.type === "series") return scope.seriesId;
   return 0;
 }
+
+const BOOKMARK_INTENT = /^\/?bookmark\b/i;
 const NAV_INTENT = /^(?:\/open\s*|(?:can you |could you |please )*(?:open|go to|goto|visit|navigate to|take me to)\b)/i;
 const PRONOUNS = new Set(["it", "that", "this", "them", "there"]);
 const URL_RE = /https?:\/\/[^\s)"'\]]+/g;
@@ -100,6 +104,10 @@ export function createChatView(root, ctx) {
     } else if (scope.type === "memory") {
       const domains = new Set(view.captures.map((c) => c.domain));
       bar.innerHTML = `<div class="title">memory: everything captured</div><div class="url">${view.captures.length} pages across ${domains.size} domains</div>`;
+    } else if (scope.type === "history") {
+      bar.innerHTML = `<div class="title">history: ${escapeHtml(scope.label || "recent")}</div><div class="url">${view.captures.length} pages from your browsing history</div>`;
+    } else if (scope.type === "bookmarks") {
+      bar.innerHTML = `<div class="title">bookmarks</div><div class="url">${view.captures.length} bookmarked pages</div>`;
     }
   }
 
@@ -169,6 +177,12 @@ export function createChatView(root, ctx) {
     } else if (scope?.type === "memory") {
       view.captures = (await listCaptures(100)).filter((c) => c.status === "ready");
       ctx.session.setScope({ type: "memory", captures: view.captures });
+    } else if (scope?.type === "history") {
+      view.captures = await historyCaptures(scope.sinceMs);
+      ctx.session.setScope({ type: "history", captures: view.captures, label: scope.label, excerptK: 8 });
+    } else if (scope?.type === "bookmarks") {
+      view.captures = await bookmarkCaptures();
+      ctx.session.setScope({ type: "bookmarks", captures: view.captures, excerptK: 8 });
     }
     renderScopebar();
     renderStrip();
@@ -282,6 +296,11 @@ export function createChatView(root, ctx) {
       return;
     }
 
+    if (BOOKMARK_INTENT.test(question) && !/\?\s*$/.test(question)) {
+      await bookmarkCurrent(question);
+      return;
+    }
+
     const sendCmd = parseSendCommand(question);
     if (sendCmd) {
       await handleSend(question, sendCmd);
@@ -326,6 +345,30 @@ export function createChatView(root, ctx) {
       bubble.classList.add("note");
     } finally {
       renderUsage();
+      setBusy(false);
+      ctx.cat("idle");
+    }
+  }
+
+  // ---- "/bookmark": file the current scope page in the right folder ----
+
+  async function bookmarkCurrent(question) {
+    const scope = ctx.getScope();
+    msgEl("user", question);
+    if (scope?.type !== "capture" || !view.capture) {
+      msgEl("note", "bookmark works on a scanned page — scan one or step to it first");
+      return;
+    }
+    await appendMessage("capture", scope.captureId, { role: "user", content: question });
+    setBusy(true);
+    ctx.cat("working");
+    try {
+      const note = await smartBookmark(view.capture);
+      msgEl("note", note);
+      await appendMessage("capture", scope.captureId, { role: "assistant", content: `[bookmark] ${note}` });
+    } catch (err) {
+      msgEl("note", `bookmark failed: ${err?.message || err}`);
+    } finally {
       setBusy(false);
       ctx.cat("idle");
     }

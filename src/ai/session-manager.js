@@ -100,7 +100,8 @@ export class ChatSessionManager {
     // ("anything interesting about it?") still land on the right chunks.
     const prev = this.recentTurns[this.recentTurns.length - 1];
     const retrievalQuery = prev ? `${prev.question} ${question}` : question;
-    const excerpts = selectExcerpts(retrievalQuery, this._captures());
+    // History/bookmark chunks are one-liners — carry more of them.
+    const excerpts = selectExcerpts(retrievalQuery, this._captures(), this.scope.excerptK);
     const links = LINK_INTENT.test(question) ? this._links() : [];
     const prompt = buildQuestionPrompt(question, excerpts, links);
     const answer = await streamPrompt(session, prompt, (full) => onChunk?.(full));

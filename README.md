@@ -68,6 +68,16 @@ All three land in IndexedDB. The artifacts tab views and exports them.
 - **Read it aloud.** "read it to me", "read the summary" — `chrome.tts`
   speaks it. "stop" stops.
 
+- **Chat with your history or bookmarks.** Memory tab → "today's history",
+  "last 7 days", or "bookmarks". Items are title/url-light — but any URL
+  you've scanned gets its capture summary cross-referenced in, so the more
+  you scan, the smarter these chats get. "open the rust article" navigates
+  from here too.
+- **`/bookmark`** files the current page into your existing bookmark tree:
+  the local model picks the folder (constrained to real folder ids), keyword
+  overlap picks when the model can't, and a `chrome-chat` folder catches the
+  rest. Dupes are reported, never re-created.
+
 One more way in — the **omnibox**: type `cc <query>` in the address bar.
 Suggestions come from your capture memory; picking one navigates to that
 page and opens the panel with its chat scoped. Plain enter drops you into
