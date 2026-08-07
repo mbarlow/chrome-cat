@@ -31,14 +31,31 @@ chrome.omnibox.onInputChanged.addListener(async (text, suggest) => {
 });
 
 chrome.omnibox.onInputEntered.addListener((text, disposition) => {
-  // Open the panel FIRST — the user-gesture token decays across awaits, and
-  // sidePanel.open() without a gesture throws. Scope follows via the pending
-  // key (the panel picks it up on load or via storage.onChanged).
-  chrome.windows.getLastFocused()
-    .then((w) => chrome.sidePanel.open({ windowId: w.id }))
-    .catch((e) => console.warn("[cc] sidePanel.open:", e?.message || e));
+  openPanelWithGesture();
   handleOmniboxEnter(text, disposition).catch((e) => console.warn("[cc] omnibox:", e?.message || e));
 });
+
+// sidePanel.open() demands a user gesture, and the gesture does NOT survive
+// promise chains (.then loses it — verified in the field). It DOES propagate
+// into chrome API callbacks. So: synchronous attempt with WINDOW_ID_CURRENT
+// first, callback-form tabs.query as the fallback. If both refuse, the
+// pending scope still stages — the toolbar click picks it up.
+function openPanelWithGesture() {
+  const fallback = () => {
+    chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
+      const tab = tabs?.[0];
+      if (!tab) return;
+      chrome.sidePanel.open({ windowId: tab.windowId }).catch((e) =>
+        console.warn("[cc] sidePanel.open (callback):", e?.message || e));
+    });
+  };
+  try {
+    chrome.sidePanel.open({ windowId: chrome.windows.WINDOW_ID_CURRENT })
+      .then(undefined, fallback);
+  } catch {
+    fallback();
+  }
+}
 
 async function handleOmniboxEnter(text, disposition) {
   // Picked suggestion row -> "capture:<id>". Plain enter (the default
