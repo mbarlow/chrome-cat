@@ -25,23 +25,33 @@ export const CRAWL_TIMEOUT_MS = 25_000;
 export const CRAWL_SETTLE_MS = 1200;  // SPA hydration after tab "complete"
 export const DEFAULT_MAX_LINKS = 20;
 
+export const MAX_CONTEXT_LINKS = 30;  // [Page links] block cap per question
+
 // chrome.storage.local keys
 export const STORAGE_KEYS = {
   maxLinks: "cc.maxLinks",
-  sameDomainOnly: "cc.sameDomainOnly"
+  sameDomainOnly: "cc.sameDomainOnly",
+  systemPrompt: "cc.systemPrompt"
 };
 
 export async function getSettings() {
   const raw = await chrome.storage.local.get(Object.values(STORAGE_KEYS));
   return {
     maxLinks: raw[STORAGE_KEYS.maxLinks] ?? DEFAULT_MAX_LINKS,
-    sameDomainOnly: raw[STORAGE_KEYS.sameDomainOnly] ?? true
+    sameDomainOnly: raw[STORAGE_KEYS.sameDomainOnly] ?? true,
+    systemPrompt: raw[STORAGE_KEYS.systemPrompt] ?? null // null -> DEFAULT_SYSTEM_BASE
   };
 }
 
-export async function saveSettings({ maxLinks, sameDomainOnly }) {
-  await chrome.storage.local.set({
-    [STORAGE_KEYS.maxLinks]: maxLinks,
-    [STORAGE_KEYS.sameDomainOnly]: sameDomainOnly
-  });
+// Partial update: only keys present in the patch are written.
+export async function saveSettings(patch) {
+  const out = {};
+  if (patch.maxLinks !== undefined) out[STORAGE_KEYS.maxLinks] = patch.maxLinks;
+  if (patch.sameDomainOnly !== undefined) out[STORAGE_KEYS.sameDomainOnly] = patch.sameDomainOnly;
+  if (patch.systemPrompt !== undefined) out[STORAGE_KEYS.systemPrompt] = patch.systemPrompt;
+  await chrome.storage.local.set(out);
+}
+
+export async function resetSystemPrompt() {
+  await chrome.storage.local.remove(STORAGE_KEYS.systemPrompt);
 }

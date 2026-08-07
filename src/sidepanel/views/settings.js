@@ -1,7 +1,8 @@
 // Settings: model status, all-sites grant, crawl caps, storage usage, wipe.
 
 import { hasAllUrls, requestAllUrls } from "../../capture/permissions.js";
-import { getSettings, saveSettings } from "../../shared/constants.js";
+import { getSettings, saveSettings, resetSystemPrompt } from "../../shared/constants.js";
+import { DEFAULT_SYSTEM_BASE } from "../../ai/prompts.js";
 import { clearAll } from "../../db/db.js";
 import { terminate } from "../../ocr/tesseract-engine.js";
 
@@ -16,6 +17,13 @@ export function createSettingsView(root, ctx) {
     <div class="setrow">
       <label id="permLabel">all-sites access (needed for crawling)</label>
       <button id="permBtn" class="mini">grant</button>
+    </div>
+    <div class="label">chat system prompt</div>
+    <textarea id="sysPrompt" rows="6" spellcheck="false"></textarea>
+    <div class="setrow" style="margin-top:6px">
+      <label class="muted" id="sysPromptState"></label>
+      <button id="sysPromptSave" class="mini">save</button>
+      <button id="sysPromptReset" class="mini">reset to default</button>
     </div>
     <div class="label">crawl</div>
     <div class="setrow">
@@ -46,6 +54,8 @@ export function createSettingsView(root, ctx) {
     const s = await getSettings();
     $("maxLinks").value = s.maxLinks;
     $("sameDomain").checked = s.sameDomainOnly;
+    $("sysPrompt").value = s.systemPrompt ?? DEFAULT_SYSTEM_BASE;
+    $("sysPromptState").textContent = s.systemPrompt ? "custom" : "default";
 
     if (navigator.storage?.estimate) {
       const { usage = 0, quota = 0 } = await navigator.storage.estimate();
@@ -73,6 +83,21 @@ export function createSettingsView(root, ctx) {
   });
   $("maxLinks").addEventListener("change", persist);
   $("sameDomain").addEventListener("change", persist);
+
+  // Applies on the next session build — destroy the live one so the change
+  // takes effect on the next question, not the next scope switch.
+  async function applySysPrompt(value) {
+    if (value === null || value.trim() === "" || value.trim() === DEFAULT_SYSTEM_BASE) {
+      await resetSystemPrompt();
+    } else {
+      await saveSettings({ systemPrompt: value.trim() });
+    }
+    ctx.session.destroy();
+    await refresh();
+    ctx.toast("System prompt updated — applies to the next question.");
+  }
+  $("sysPromptSave").addEventListener("click", () => applySysPrompt($("sysPrompt").value));
+  $("sysPromptReset").addEventListener("click", () => applySysPrompt(null));
   $("wipeBtn").addEventListener("click", async () => {
     if (!confirm("Delete ALL stored captures, tiles, series, and chats?")) return;
     await terminate();

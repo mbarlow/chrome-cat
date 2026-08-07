@@ -5,7 +5,10 @@
 import { createAiSession, streamPrompt, sessionUsage } from "./language-model.js";
 import { buildSystemPrompt, buildQuestionPrompt } from "./prompts.js";
 import { topChunks, scopeChunks } from "./retrieval.js";
-import { QUOTA_REBUILD_AT } from "../shared/constants.js";
+import { QUOTA_REBUILD_AT, MAX_CONTEXT_LINKS, getSettings } from "../shared/constants.js";
+import { normalizeUrl } from "../shared/url.js";
+
+const LINK_INTENT = /\b(links?|urls?|sources?|href|cite|citation|address(es)?)\b/i;
 
 export class ChatSessionManager {
   constructor() {
@@ -34,7 +37,8 @@ export class ChatSessionManager {
   async _ensureSession({ onDownload } = {}) {
     if (this.session) return this.session;
     if (this._creating) return this._creating;
-    const systemPrompt = buildSystemPrompt(this.scope);
+    const settings = await getSettings();
+    const systemPrompt = buildSystemPrompt(this.scope, settings.systemPrompt || undefined);
     this._creating = createAiSession({ systemPrompt, onDownload })
       .then((s) => { this.session = s; this._creating = null; return s; })
       .catch((err) => { this._creating = null; throw err; });
@@ -43,6 +47,23 @@ export class ChatSessionManager {
 
   _captures() {
     return this.scope.type === "capture" ? [this.scope.capture] : this.scope.captures;
+  }
+
+  // Stored page links, deduped across the scope, capped. Only fed to the
+  // model when the question asks for links — they cost quota otherwise.
+  _links() {
+    const seen = new Set();
+    const out = [];
+    for (const c of this._captures()) {
+      for (const l of c.links || []) {
+        const key = normalizeUrl(l.href);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(l);
+        if (out.length >= MAX_CONTEXT_LINKS) return out;
+      }
+    }
+    return out;
   }
 
   // Ask a question. onChunk(fullSoFar) streams the answer.
@@ -72,7 +93,8 @@ export class ChatSessionManager {
     }
 
     const excerpts = topChunks(question, scopeChunks(this._captures()));
-    const prompt = buildQuestionPrompt(question, excerpts);
+    const links = LINK_INTENT.test(question) ? this._links() : [];
+    const prompt = buildQuestionPrompt(question, excerpts, links);
     const answer = await streamPrompt(session, prompt, (full) => onChunk?.(full));
     this.recentTurns.push({ question, answer });
     if (this.recentTurns.length > 4) this.recentTurns.shift();

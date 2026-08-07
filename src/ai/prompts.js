@@ -1,28 +1,38 @@
 // All prompt text in one place.
 
-export const CHAT_SYSTEM_BASE =
+export const DEFAULT_SYSTEM_BASE =
   "You are a local assistant chatting about captured web pages. " +
   "Answer only from the page content provided in each message. " +
   "If the answer is not in the provided content, say so plainly. " +
-  "Be concise. Never invent URLs, numbers, or quotes.";
+  "Be concise. Only cite URLs, numbers, or quotes that appear in the provided content.";
 
 // scope: { type: "capture", capture } | { type: "series", series, captures[] }
-export function buildSystemPrompt(scope) {
+// base: the (possibly user-edited) system prompt from settings.
+export function buildSystemPrompt(scope, base = DEFAULT_SYSTEM_BASE) {
   if (scope.type === "capture") {
     const c = scope.capture;
-    return `${CHAT_SYSTEM_BASE}\n\nCurrent page: "${c.title}" (${c.url}), captured ${new Date(c.ts).toISOString().slice(0, 16)}.` +
+    return `${base}\n\nCurrent page: "${c.title}" (${c.url}), captured ${new Date(c.ts).toISOString().slice(0, 16)}.` +
       (c.summary ? `\nPage summary: ${c.summary}` : "");
   }
   const lines = scope.captures.map((c, i) =>
     `${i + 1}. "${c.title}" — ${c.url}${c.summary ? ` — ${firstSentence(c.summary)}` : ""}`);
-  return `${CHAT_SYSTEM_BASE}\n\nYou are chatting about a series of ${scope.captures.length} captured pages:\n${lines.join("\n")}`;
+  return `${base}\n\nYou are chatting about a series of ${scope.captures.length} captured pages:\n${lines.join("\n")}`;
 }
 
-export function buildQuestionPrompt(question, excerpts) {
-  if (!excerpts.length) return question;
-  const body = excerpts.map((e) =>
-    e.label ? `[${e.label}]\n${e.text}` : e.text).join("\n\n---\n\n");
-  return `[Relevant page excerpts]\n${body}\n\n[Question]\n${question}`;
+export function buildQuestionPrompt(question, excerpts, links = []) {
+  const parts = [];
+  if (excerpts.length) {
+    const body = excerpts.map((e) =>
+      e.label ? `[${e.label}]\n${e.text}` : e.text).join("\n\n---\n\n");
+    parts.push(`[Relevant page excerpts]\n${body}`);
+  }
+  if (links.length) {
+    const body = links.map((l) =>
+      l.text ? `- ${l.text} — ${l.href}` : `- ${l.href}`).join("\n");
+    parts.push(`[Page links]\n${body}`);
+  }
+  if (!parts.length) return question;
+  return `${parts.join("\n\n")}\n\n[Question]\n${question}`;
 }
 
 export function buildSummaryPrompt(title, url, text) {
