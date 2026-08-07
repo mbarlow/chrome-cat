@@ -75,6 +75,19 @@ memory-wide chat with the query staged.
 
 The system prompt is editable in settings. It's your assistant; tune it.
 
+## The cat
+
+A monochrome pixel cat lives in the header and reflects what the extension
+is doing: sits and swishes when idle, crouches while scanning, head-bobs
+while the model streams, stands and bats at things during crawls and sends.
+Left alone it blinks, occasionally swats, stretches, pounces — and falls
+asleep after 45s.
+
+The whole mascot is `src/mascot/mascot.json`: ASCII pixel frames, per-state
+fps, behavior weights, sleep timeout. Edit strings, reload, new cat. The
+engine (`src/mascot/mascot.js`) just plays whatever the JSON defines —
+swap the file to swap the mascot.
+
 ## Requirements
 
 Chrome 138+ desktop.

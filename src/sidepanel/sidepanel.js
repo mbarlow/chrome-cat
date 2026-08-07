@@ -3,6 +3,7 @@
 
 import { getAiAvailability } from "../ai/language-model.js";
 import { ChatSessionManager } from "../ai/session-manager.js";
+import { Mascot, loadMascotConfig } from "../mascot/mascot.js";
 import { createChatView } from "./views/chat.js";
 import { createArtifactsView } from "./views/artifacts.js";
 import { createMemoryView } from "./views/memory.js";
@@ -80,8 +81,15 @@ const ctx = {
   session: new ChatSessionManager(),
   refreshAi,
   showDownload,
-  showView
+  showView,
+  // Mascot loads async; cat() is safe to call before it's ready.
+  mascot: null,
+  cat: (s) => ctx.mascot?.setState(s)
 };
+
+loadMascotConfig()
+  .then((cfg) => { ctx.mascot = new Mascot(document.getElementById("mascotCanvas"), cfg); })
+  .catch((e) => console.warn("mascot disabled:", e?.message || e));
 
 createChatView(document.getElementById("view-chat"), ctx);
 createArtifactsView(document.getElementById("view-artifacts"), ctx);
