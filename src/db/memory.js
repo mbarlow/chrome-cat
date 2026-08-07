@@ -3,7 +3,7 @@
 //               paths: [{ path, pathDepth, summary, captureIds[] }] }
 
 import { openDB, tx, reqValue } from "./db.js";
-import { listCapturesByDomain } from "./captures.js";
+import { listCapturesByDomain, listCaptures } from "./captures.js";
 import { tokenize } from "../shared/text.js";
 
 export async function getDomain(domain) {
@@ -43,19 +43,23 @@ export async function refreshDomain(domain, rollupSummary = null) {
   return putDomain(row);
 }
 
-// Search domain + path + capture summaries. Plain TF scoring over tokens —
-// small corpus, no index needed. Returns [{ type, domain, path?, captureId?, score, text }].
+// Search domains, paths, AND page titles/urls/summaries. Plain TF scoring —
+// small corpus, no index needed. Substring matching for terms >= 4 chars so
+// "metal" hits "provenmetal"; summaries may be empty (Nano offline at scan
+// time), so titles/urls must carry the search on their own.
+// Returns [{ type, domain, path?, captureId?, score, text }].
 export async function searchMemory(query, limit = 20) {
   const terms = tokenize(query);
   if (!terms.length) return [];
-  const results = [];
+  const match = (tok, t) => tok === t || tok.startsWith(t) || (t.length >= 4 && tok.includes(t));
   const score = (text) => {
     const toks = tokenize(text);
     if (!toks.length) return 0;
     let hits = 0;
-    for (const t of terms) hits += toks.filter((x) => x === t || x.startsWith(t)).length;
+    for (const t of terms) hits += toks.filter((x) => match(x, t)).length;
     return hits / Math.sqrt(toks.length);
   };
+  const results = [];
   for (const d of await listDomains()) {
     const ds = score(`${d.domain} ${d.summary}`);
     if (ds > 0) results.push({ type: "domain", domain: d.domain, score: ds, text: d.summary });
@@ -70,5 +74,22 @@ export async function searchMemory(query, limit = 20) {
       }
     }
   }
-  return results.sort((a, b) => b.score - a.score).slice(0, limit);
+  for (const c of await listCaptures(200)) {
+    const cs = score(`${c.title} ${c.domain} ${c.path} ${c.summary}`);
+    if (cs > 0) {
+      results.push({
+        type: "page", domain: c.domain, path: c.path, captureId: c.id,
+        score: cs, text: `${c.title}${c.summary ? " — " + c.summary : ""}`
+      });
+    }
+  }
+  // Best-first; one row per capture (path + page rows can duplicate).
+  results.sort((a, b) => b.score - a.score);
+  const seen = new Set();
+  return results.filter((r) => {
+    if (r.captureId == null) return true;
+    if (seen.has(r.captureId)) return false;
+    seen.add(r.captureId);
+    return true;
+  }).slice(0, limit);
 }
