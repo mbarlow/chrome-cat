@@ -34,6 +34,17 @@ export function createSettingsView(root, ctx) {
       <label for="sameDomain">same-domain links only</label>
       <input type="checkbox" id="sameDomain" />
     </div>
+    <div class="label">webhooks</div>
+    <div class="muted" style="font-size:11px;margin-bottom:6px">
+      "send the summary to &lt;name&gt;" POSTs JSON {title, url, kind, content}.
+      localhost works out of the box; remote URLs need the all-sites grant.
+    </div>
+    <div id="hookList"></div>
+    <div class="setrow">
+      <input type="text" id="hookName" placeholder="name (e.g. vault)" style="flex:1" />
+      <input type="text" id="hookUrl" placeholder="http://localhost:8787/inbox" style="flex:2" />
+      <button id="hookAdd" class="mini">add</button>
+    </div>
     <div class="label">storage</div>
     <div class="setrow"><label id="storageLabel">…</label></div>
     <div class="setrow">
@@ -56,6 +67,7 @@ export function createSettingsView(root, ctx) {
     $("sameDomain").checked = s.sameDomainOnly;
     $("sysPrompt").value = s.systemPrompt ?? DEFAULT_SYSTEM_BASE;
     $("sysPromptState").textContent = s.systemPrompt ? "custom" : "default";
+    renderHooks(s.webhooks);
 
     if (navigator.storage?.estimate) {
       const { usage = 0, quota = 0 } = await navigator.storage.estimate();
@@ -73,6 +85,47 @@ export function createSettingsView(root, ctx) {
     });
     ctx.toast("Settings saved.");
   }
+
+  function renderHooks(webhooks) {
+    const list = $("hookList");
+    list.replaceChildren();
+    for (const [i, w] of webhooks.entries()) {
+      const row = document.createElement("div");
+      row.className = "setrow";
+      const label = document.createElement("label");
+      label.textContent = `${w.name} → ${w.url}`;
+      label.style.wordBreak = "break-all";
+      const del = document.createElement("button");
+      del.className = "mini danger";
+      del.textContent = "×";
+      del.addEventListener("click", async () => {
+        const next = webhooks.filter((_, j) => j !== i);
+        await saveSettings({ webhooks: next });
+        renderHooks(next);
+      });
+      row.append(label, del);
+      list.append(row);
+    }
+  }
+
+  $("hookAdd").addEventListener("click", async () => {
+    const name = $("hookName").value.trim();
+    const url = $("hookUrl").value.trim();
+    if (!name || !/^https?:\/\//.test(url)) {
+      ctx.toast("Webhook needs a name and an http(s) URL.");
+      return;
+    }
+    const { webhooks } = await getSettings();
+    if (webhooks.some((w) => w.name.toLowerCase() === name.toLowerCase())) {
+      ctx.toast(`Webhook "${name}" already exists.`);
+      return;
+    }
+    const next = [...webhooks, { name, url }];
+    await saveSettings({ webhooks: next });
+    $("hookName").value = $("hookUrl").value = "";
+    renderHooks(next);
+    ctx.toast(`Webhook "${name}" added — try: send the summary to ${name}`);
+  });
 
   $("modelHelp").addEventListener("click", () => {
     chrome.tabs.create({ url: "chrome://on-device-internals" });

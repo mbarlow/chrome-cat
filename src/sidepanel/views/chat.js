@@ -336,7 +336,8 @@ export function createChatView(root, ctx) {
     }
     setBusy(true);
     try {
-      const note = await dispatchSend(cmd, { type: scope.type, id: scopeId }, captures);
+      const { webhooks } = await getSettings();
+      const note = await dispatchSend(cmd, { type: scope.type, id: scopeId }, captures, webhooks);
       msgEl("note", note);
       await appendMessage(scope.type, scopeId, { role: "assistant", content: `[${cmd.sink || "send"}] ${note}` });
     } catch (err) {

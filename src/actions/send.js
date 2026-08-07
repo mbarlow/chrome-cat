@@ -5,6 +5,7 @@
 // for everything else (Docs renders to canvas — injection is a dead end).
 
 import { getOrCreateChat } from "../db/chats.js";
+import { WEBHOOK_TIMEOUT_MS } from "../shared/constants.js";
 
 // Composer URLs cap around 8k; leave room for encoding overhead.
 const URL_BODY_CAP = 5500;
@@ -13,10 +14,11 @@ const enc = encodeURIComponent;
 
 // ---- intent parsing ----
 
-const SEND_START = /^\/?(?:email|mail|send|copy|save|download|calendar|event|new doc|doc)\b/i;
+const SEND_START = /^\/?(?:email|mail|send|post|push|copy|save|download|calendar|event|new doc|doc)\b/i;
 
-// question -> { sink, kind } | null. sink may be null ("send this" with no
-// destination) — caller lists the options.
+// question -> { sink, kind, question } | null. sink may be null ("send this
+// to vault") — dispatch resolves it against the named webhooks, or lists
+// the options.
 export function parseSendCommand(question) {
   // A trailing "?" is a question for the model ("email addresses on the
   // page?"), not a command.
@@ -28,7 +30,14 @@ export function parseSendCommand(question) {
   else if (/\bdocs?\b/i.test(question)) sink = "doc";
   else if (/^\/?copy\b|clipboard/i.test(question)) sink = "copy";
   else if (/markdown|\bmd\b|^\/?(save|download)\b/i.test(question)) sink = "markdown";
-  return { sink, kind: parsePayloadKind(question) };
+  return { sink, kind: parsePayloadKind(question), question };
+}
+
+// "send the summary to vault" -> the webhook named "vault".
+export function matchWebhook(question, webhooks) {
+  const q = question.toLowerCase();
+  return webhooks.find((w) =>
+    new RegExp(`\\b${w.name.toLowerCase().replace(/[^a-z0-9]+/g, "\\W*")}\\b`).test(q)) || null;
 }
 
 export function parsePayloadKind(question) {
@@ -134,6 +143,35 @@ async function capForUrl(payload) {
   return { body: `${source.slice(0, URL_BODY_CAP)}…\n\n— ${payload.url}`, truncated: true };
 }
 
+// POST to a named webhook — the local-mesh sink. Localhost is a first-class
+// host permission; remote hooks need the runtime <all_urls> grant.
+export async function toWebhook(payload, hook, kind) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), WEBHOOK_TIMEOUT_MS);
+  try {
+    const res = await fetch(hook.url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: ctl.signal,
+      body: JSON.stringify({
+        source: "chrome-chat",
+        kind,
+        title: payload.title,
+        url: payload.url,
+        ts: Date.now(),
+        content: payload.text
+      })
+    });
+    if (!res.ok) throw new Error(`${hook.name} answered ${res.status}`);
+    return `sent ${kind} to ${hook.name}`;
+  } catch (err) {
+    if (err.name === "AbortError") throw new Error(`${hook.name} timed out after ${WEBHOOK_TIMEOUT_MS / 1000}s`);
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const SINKS = {
   email: (p) => toEmail(p),
   calendar: (p) => toCalendar(p),
@@ -142,13 +180,20 @@ const SINKS = {
   markdown: (p, captures) => toMarkdown(p, captures)
 };
 
-export const SINK_HELP =
-  "where to? try: email / calendar / doc / copy / save as markdown — " +
-  "with: the summary, the ocr, the dom text, the links, the chat, or the last answer";
+export function sinkHelp(webhooks = []) {
+  const hooks = webhooks.length ? ` / ${webhooks.map((w) => w.name).join(" / ")}` : "";
+  return `where to? try: email / calendar / doc / copy / save as markdown${hooks} — ` +
+    "with: the summary, the ocr, the dom text, the links, the chat, or the last answer";
+}
 
 // Full dispatch. Returns the note to show, or throws.
-export async function dispatchSend({ sink, kind }, scope, captures) {
-  if (!sink) return SINK_HELP;
+export async function dispatchSend({ sink, kind, question }, scope, captures, webhooks = []) {
+  if (!sink) {
+    const hook = matchWebhook(question || "", webhooks);
+    if (!hook) return sinkHelp(webhooks);
+    const payload = await buildPayload(kind, scope, captures);
+    return toWebhook(payload, hook, kind);
+  }
   const payload = await buildPayload(kind, scope, captures);
   return SINKS[sink](payload, captures);
 }

@@ -28,11 +28,14 @@ export const DEFAULT_MAX_LINKS = 20;
 export const MAX_CONTEXT_LINKS = 30;  // [Page links] block cap per question
 export const MAX_VISION_TILES = 3;    // tiles fed to a multimodal question (quota)
 
+export const WEBHOOK_TIMEOUT_MS = 10_000;
+
 // chrome.storage.local keys
 export const STORAGE_KEYS = {
   maxLinks: "cc.maxLinks",
   sameDomainOnly: "cc.sameDomainOnly",
-  systemPrompt: "cc.systemPrompt"
+  systemPrompt: "cc.systemPrompt",
+  webhooks: "cc.webhooks" // [{ name, url }]
 };
 
 export async function getSettings() {
@@ -40,7 +43,8 @@ export async function getSettings() {
   return {
     maxLinks: raw[STORAGE_KEYS.maxLinks] ?? DEFAULT_MAX_LINKS,
     sameDomainOnly: raw[STORAGE_KEYS.sameDomainOnly] ?? true,
-    systemPrompt: raw[STORAGE_KEYS.systemPrompt] ?? null // null -> DEFAULT_SYSTEM_BASE
+    systemPrompt: raw[STORAGE_KEYS.systemPrompt] ?? null, // null -> DEFAULT_SYSTEM_BASE
+    webhooks: raw[STORAGE_KEYS.webhooks] ?? []
   };
 }
 
@@ -50,6 +54,7 @@ export async function saveSettings(patch) {
   if (patch.maxLinks !== undefined) out[STORAGE_KEYS.maxLinks] = patch.maxLinks;
   if (patch.sameDomainOnly !== undefined) out[STORAGE_KEYS.sameDomainOnly] = patch.sameDomainOnly;
   if (patch.systemPrompt !== undefined) out[STORAGE_KEYS.systemPrompt] = patch.systemPrompt;
+  if (patch.webhooks !== undefined) out[STORAGE_KEYS.webhooks] = patch.webhooks;
   await chrome.storage.local.set(out);
 }
 

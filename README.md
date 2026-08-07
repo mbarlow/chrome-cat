@@ -49,6 +49,11 @@ All three land in IndexedDB. The artifacts tab views and exports them.
   (lands in `Downloads/chrome-chat/<domain>/`) cover everything else.
   Payloads: the summary, the ocr, the dom text, the links, the chat, or the
   last answer.
+- **Feed your local mesh.** Name a webhook in settings ("vault" →
+  `http://localhost:8787/inbox`), then "send the summary to vault" POSTs
+  `{source, kind, title, url, ts, content}` as JSON. Localhost needs no
+  extra permission; remote URLs use the all-sites grant. A ten-line receiver
+  turns this into an Obsidian inbox, a message bus, anything.
 
 The system prompt is editable in settings. It's your assistant; tune it.
 

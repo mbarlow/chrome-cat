@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "minimum_chrome_version": "138",
   "permissions": ["sidePanel", "activeTab", "scripting", "storage", "tabs", "downloads"],
-  "host_permissions": [],
+  "host_permissions": ["http://localhost/*", "http://127.0.0.1/*"],
   "optional_host_permissions": ["<all_urls>"],
   "action": {
     "default_title": "Chat about this page",
