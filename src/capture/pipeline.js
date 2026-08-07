@@ -8,7 +8,30 @@ import { ocrTile } from "../ocr/tesseract-engine.js";
 import { summarizeCapture } from "../ai/summarizer.js";
 import { refreshDomain } from "../db/memory.js";
 import * as captures from "../db/captures.js";
+import { getOrCreateChat, appendMessage } from "../db/chats.js";
 import { chunkText } from "../shared/text.js";
+
+// Model output arrives as "SUMMARY: ... KEYWORDS: ..." — strip the scaffold
+// for the chat opener.
+export function summaryMessage(summary) {
+  const m = String(summary).match(/SUMMARY:\s*([\s\S]*?)(?:\n\s*KEYWORDS:\s*([\s\S]*))?$/i);
+  if (!m) return String(summary).trim();
+  const body = m[1].trim();
+  const kw = m[2]?.trim().replace(/\s*\n\s*/g, " ");
+  return kw ? `${body}\n\n· ${kw}` : body;
+}
+
+// Seed a fresh capture's chat with its summary so the thread opens with
+// something to react to. Empty threads only — rescans don't re-announce.
+async function seedChat(capture) {
+  if (!capture.summary) return;
+  const chat = await getOrCreateChat("capture", capture.id);
+  if (chat.messages.length) return;
+  await appendMessage("capture", capture.id, {
+    role: "assistant",
+    content: summaryMessage(capture.summary)
+  });
+}
 
 export async function capturePage(tabId, windowId, { seriesId = null, onPhase } = {}) {
   const { metrics, dom, frames } = await scanPage(tabId, windowId, {
@@ -69,6 +92,7 @@ export async function capturePage(tabId, windowId, { seriesId = null, onPhase } 
     updated = await captures.updateCapture(capture.id, { summary, status: "ready" });
     onPhase?.("summary", 1, 1);
 
+    await seedChat(updated);
     await refreshDomain(updated.domain);
     return updated;
   } catch (err) {
