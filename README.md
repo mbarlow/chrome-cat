@@ -10,6 +10,9 @@ tiles, OCRs them with [Tesseract.js](https://github.com/naptha/tesseract.js)
 ([Gemini Nano](https://developer.chrome.com/docs/ai/prompt-api)) in front of
 the result. No server. No API key. Nothing leaves the machine.
 
+<img width="1872" height="892" alt="image" src="https://github.com/user-attachments/assets/5d693098-1ab9-4cef-958f-d8b3be78172c" />
+
+
 ## Install
 
 **From a release** (fastest):
