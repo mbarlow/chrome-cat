@@ -62,7 +62,14 @@ scoped; pages you've scanned answer with real content.
 capture memory and jump straight to a page + its chat.
 
 **Artifacts tab** — every scan's tiles, OCR text, and DOM text: view, copy,
-export. The ⤓ button saves any chat as clean markdown.
+export, re-summarize. The ⤓ button saves any chat as clean markdown.
+
+**How it answers** — the model routes each question to page text, a look
+at the scan tiles, the page's links, or general knowledge (keyword rules if
+it can't). Image questions also get the page's alt text and captions.
+"Who painted this" is asked twice independently; agreement is stated,
+disagreement is hedged (hover the answer to see both guesses). When the
+page doesn't cover a question, a labelled general-knowledge answer follows.
 
 The pixel cat in the header shows what's happening — idle, scanning,
 replying, working. It lives in `src/mascot/mascot.json`; edit the frames,

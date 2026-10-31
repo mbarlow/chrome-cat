@@ -3,6 +3,7 @@
 
 import { ChatSessionManager } from "../ai/session-manager.js";
 import { createModelStatus } from "./model-status.js";
+import { purgeStubOutput } from "../db/cleanup.js";
 import { Mascot, loadMascotConfig } from "../mascot/mascot.js";
 import { createChatView } from "./views/chat.js";
 import { createArtifactsView } from "./views/artifacts.js";
@@ -98,3 +99,10 @@ chrome.storage.session.onChanged.addListener(() => { applyPending(); });
 
 refreshAi();
 applyPending();
+purgeStubOutput()
+  .then(({ summaries, messages }) => {
+    if (summaries + messages) {
+      toast(`Removed placeholder-model output: ${summaries} summaries, ${messages} replies.`);
+    }
+  })
+  .catch((e) => console.warn("cleanup skipped:", e?.message || e));

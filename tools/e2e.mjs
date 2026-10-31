@@ -73,7 +73,8 @@ const CHECKS = [
   { name: "image metadata", ask: "who painted the picture on this page?", text: /eyck/i, route: "vision" },
   { name: "follow-up", ask: "when was that painting made?", text: /1434/ },
   { name: "links", ask: "what links are there?", text: /tickets|example\.com/i, route: "links" },
-  { name: "general knowledge", ask: "what is the capital of France?", text: /paris/i }
+  { name: "general knowledge", ask: "what is the capital of France?", text: /paris/i, route: "general" },
+  { name: "page gap → general", ask: "what is the gallery's phone number?", text: /general knowledge/i }
 ];
 
 async function run() {
@@ -146,7 +147,7 @@ async function run() {
       }
       results.push(r);
       log(r.ok ? "PASS " : "MODEL", c.name, `[${r.route || "-"}]`, `“${c.ask}”`, r.attempts > 1 ? `(attempt ${r.attempts})` : "");
-      log("      ", r.answer.replace(/\s+/g, " ").slice(0, 220));
+      log("      ", r.answer.replace(/\s+/g, " ").slice(0, 300));
     }
 
     const md = await panel.$$eval(".msg.assistant", (els) => els.filter((e) => e.textContent.includes("**")).length);
@@ -155,6 +156,7 @@ async function run() {
     results.push({ name: "status steady", ok: flicker.length === 0, kind: "tooling", answer: JSON.stringify(flicker) });
     results.push(await resummarize(panel));
     results.push({ name: "no page errors", ok: errors.length === 0, kind: "tooling", answer: errors.join(" | ") });
+    results.push(await cleanup(panel));
 
     for (const r of results.slice(CHECKS.length)) log(r.ok ? "PASS " : "TOOL ", r.name, r.ok ? "" : `— ${r.answer}`);
     await panel.screenshot({ path: join(OUT, "panel.png") });
@@ -179,8 +181,10 @@ async function ask(panel, check) {
   if (!done) throw new ToolingError(`no answer to "${check.ask}" within ${ANSWER_MS / 1000}s`);
   const last = panel.locator(".msg.assistant").last();
   const answer = await last.textContent();
-  const route = await last.getAttribute("data-route");
-  const ok = check.text.test(answer) && (!check.route || check.route === route);
+  const route = [await last.getAttribute("data-route"), await last.getAttribute("data-check")].filter(Boolean).join("/");
+  const title = await last.getAttribute("title");
+  if (title) log("      ", title);
+  const ok = check.text.test(answer) && (!check.route || route.split("/")[0] === check.route);
   return { name: check.name, ok, kind: "model", answer, route, attempts: check.attempts };
 }
 
@@ -203,6 +207,28 @@ async function resummarize(panel) {
   });
   await panel.click('#tabs [data-tab="chat"]');
   return { name, ok: /harbor|gallery|museum/i.test(summary), kind: "model", answer: summary.slice(0, 160) };
+}
+
+// Seed placeholder-backend output, reload the panel, expect it purged.
+async function cleanup(panel) {
+  const stub = "CPU backendFastest inferenceTopK: 64, Temp: 1System: x End.";
+  await panel.evaluate(async (text) => {
+    const db = await import("../db/captures.js");
+    const chats = await import("../db/chats.js");
+    const [c] = await db.listCaptures(1);
+    await db.updateCapture(c.id, { summary: text });
+    await chats.appendMessage("capture", c.id, { role: "assistant", content: text });
+  }, stub);
+  await panel.reload();
+  await panel.waitForTimeout(2000);
+  const left = await panel.evaluate(async (text) => {
+    const db = await import("../db/captures.js");
+    const chats = await import("../db/chats.js");
+    const [c] = await db.listCaptures(1);
+    const chat = await chats.getOrCreateChat("capture", c.id);
+    return Number(c.summary === text) + chat.messages.filter((m) => m.content === text).length;
+  }, stub);
+  return { name: "placeholder cleanup", ok: left === 0, kind: "tooling", answer: `${left} stub rows left` };
 }
 
 async function poll(fn, ms, every = 500) {

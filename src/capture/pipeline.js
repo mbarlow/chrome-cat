@@ -10,6 +10,7 @@ import { refreshDomain } from "../db/memory.js";
 import * as captures from "../db/captures.js";
 import { getOrCreateChat, appendMessage } from "../db/chats.js";
 import { chunkText } from "../shared/text.js";
+import { describeImages } from "../ai/prompts.js";
 
 // Model output arrives as "SUMMARY: ... KEYWORDS: ..." — strip the scaffold
 // for the chat opener.
@@ -61,8 +62,9 @@ export async function capturePage(tabId, windowId, { seriesId = null, onPhase } 
       status: "ocr",
       tileCount: tiles.length,
       domText: dom.text,
-      domChunks: chunkText(dom.text),
-      links: dom.links
+      domChunks: [...chunkText(dom.text), describeImages(dom.images)].filter(Boolean),
+      links: dom.links,
+      images: dom.images || []
     });
 
     // Sequential OCR, one tile at a time.

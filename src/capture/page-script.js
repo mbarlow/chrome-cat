@@ -62,7 +62,8 @@ export function pageRestore() {
   return true;
 }
 
-// DOM ground truth: full text + deduped http(s) links.
+// DOM ground truth: full text, deduped http(s) links, and what the HTML says
+// about its images (alt, title, aria-label, figcaption, descriptive filename).
 export function pageExtractDom() {
   const seen = new Set();
   const links = [];
@@ -75,5 +76,22 @@ export function pageExtractDom() {
     seen.add(clean);
     links.push({ href: clean, text: (a.innerText || "").trim().slice(0, 120) });
   }
-  return { text: document.body?.innerText || "", links };
+  const images = [];
+  for (const img of document.querySelectorAll("img")) {
+    const r = img.getBoundingClientRect();
+    if (r.width < 48 || r.height < 48) continue;
+    let file = "";
+    try {
+      const u = new URL(img.currentSrc || img.src);
+      const name = decodeURIComponent(u.pathname.split("/").pop() || "").replace(/\.[a-z0-9]+$/i, "");
+      if (/^https?:$/.test(u.protocol) && /[a-z]{3,}[-_ ][a-z]{3,}/i.test(name)) file = name.replace(/[-_]+/g, " ");
+    } catch { /* unparseable src */ }
+    const parts = [img.alt, img.title, img.getAttribute("aria-label"),
+      img.closest("figure")?.querySelector("figcaption")?.innerText, file]
+      .map((s) => (s || "").trim()).filter(Boolean);
+    const desc = [...new Set(parts)].join(" — ").slice(0, 200);
+    if (desc && !images.includes(desc)) images.push(desc);
+    if (images.length >= 20) break;
+  }
+  return { text: document.body?.innerText || "", links, images };
 }

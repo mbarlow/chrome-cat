@@ -57,6 +57,12 @@ export function buildQuestionPrompt(question, excerpts, links = []) {
   return `${parts.join("\n\n")}\n\n[Question]\n${question}`;
 }
 
+// No page excerpts: the question is about the world, not the page.
+export function buildGeneralPrompt(question) {
+  return "Answer from your own general knowledge, briefly. Begin with \"(general knowledge)\". " +
+    `If you don't know, say so.\n\n[Question]\n${question}`;
+}
+
 export function buildSummaryPrompt(title, url, text) {
   return `Summarize this web page in at most 4 sentences, then list 5 keywords.\n` +
     `Format:\nSUMMARY: <sentences>\nKEYWORDS: <comma-separated>\n\n` +
@@ -67,6 +73,13 @@ export function buildRollupPrompt(domain, pageSummaries) {
   return `These are summaries of pages captured from the site ${domain}. ` +
     `Write a 2-3 sentence rollup of what this site/section covers.\n\n` +
     pageSummaries.map((s, i) => `${i + 1}. ${s}`).join("\n");
+}
+
+// What the page's HTML says about its images, as one retrievable chunk.
+export function describeImages(images = []) {
+  if (!images.length) return "";
+  return "Images, photos and paintings on this page, as described by the page's alt text and captions:\n" +
+    images.map((d, i) => `${i + 1}. ${d}`).join("\n");
 }
 
 export function firstSentence(s) {

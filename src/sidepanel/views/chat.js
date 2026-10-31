@@ -16,7 +16,6 @@ import { escapeHtml, tokenize, plural } from "../../shared/text.js";
 import { renderMarkdown } from "../../shared/markdown.js";
 import { normalizeUrl } from "../../shared/url.js";
 
-const VISION_INTENT = /\b(images?|pictures?|photos?|photographs?|paintings?|painted|artworks?|portraits?|illustrations?|drawings?|screenshots?|charts?|graphs?|diagrams?|logos?|icons?|layout|visual(ly)?|colou?rs?|design|looks? like|recogni[sz]e|pictured|(can|do) you see|what do you see)\b/i;
 
 // One chat thread per scope; memory/history/bookmarks each share thread id 0.
 function scopeIdOf(scope) {
@@ -354,13 +353,17 @@ export function createChatView(root, ctx) {
     setBusy(true);
     ctx.cat("replying");
     try {
+      let route = await ctx.session.route(question);
       // Visual questions look at the stored scan tiles (capture scope only —
       // a whole series of images won't fit the model's quota).
-      if (VISION_INTENT.test(question) && scope.type === "capture") {
-        const done = await askVision(question, scope, bubble);
-        if (done) return;
+      if (route === "vision" && scope.type === "capture") {
+        bubble.dataset.route = route;
+        if (await askVision(question, scope, bubble)) return;
       }
+      if (route === "vision") route = "text";
+      bubble.dataset.route = route;
       const { answer, trimmed } = await ctx.session.ask(question, {
+        route,
         onChunk: (full) => {
           setAnswer(bubble, full);
           $("msgs").scrollTop = $("msgs").scrollHeight;
@@ -546,11 +549,16 @@ export function createChatView(root, ctx) {
     bubble.textContent = "👁 looking at the page…";
     try {
       const used = tiles.slice(0, MAX_VISION_TILES);
-      const answer = await answerAboutTiles(question, used.map((t) => t.blob), {
+      const { answer, check, guesses } = await answerAboutTiles(question, used.map((t) => t.blob), {
         history: ctx.session.recentTurns.slice(-2),
+        notes: ctx.session.scope?.capture?.images || [],
         onDownload: ctx.showDownload
       });
       ctx.session.remember(question, answer);
+      if (check) {
+        bubble.dataset.check = check;
+        bubble.title = `identification cross-check: ${check} — ${guesses}`;
+      }
       setAnswer(bubble, answer);
       if (tiles.length > used.length) {
         msgEl("note", `looked at the first ${used.length} of ${tiles.length} tiles`);

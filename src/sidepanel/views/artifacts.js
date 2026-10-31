@@ -1,7 +1,8 @@
 // Artifacts view: browse stored captures, view tiles + their OCR text,
 // export tiles/texts/JSON. Blob URLs are revoked on every re-render.
 
-import { listCaptures, getTiles } from "../../db/captures.js";
+import { listCaptures, getTiles, updateCapture } from "../../db/captures.js";
+import { summarizeCapture } from "../../ai/summarizer.js";
 import { normalizeUrl } from "../../shared/url.js";
 
 export function createArtifactsView(root, ctx) {
@@ -27,6 +28,10 @@ export function createArtifactsView(root, ctx) {
           <button id="expOcr">ocr .txt</button>
           <button id="expDom">dom .txt</button>
           <button id="expJson">capture .json</button>
+        </div>
+        <div class="label">summary</div>
+        <div class="actions">
+          <button id="resummarize" title="Ask the model for a fresh summary of this capture">re-summarize</button>
         </div>
       </div>
     </div>
@@ -171,6 +176,28 @@ export function createArtifactsView(root, ctx) {
     if (!view.capture) return;
     const { domChunks, ...rest } = view.capture; // blobs live in tiles; chunks are derivable
     download(`${slug(view.capture)}.json`, new Blob([JSON.stringify(rest, null, 2)], { type: "application/json" }));
+  });
+
+  $("resummarize").addEventListener("click", async () => {
+    const c = view.capture;
+    if (!c) return;
+    const btn = $("resummarize");
+    btn.disabled = true;
+    btn.textContent = "summarizing…";
+    try {
+      const summary = await summarizeCapture(c);
+      if (!summary) {
+        ctx.toast("Couldn't summarize — check the model status.");
+        return;
+      }
+      view.capture = await updateCapture(c.id, { summary });
+      ctx.toast("Summary updated.");
+      const scope = ctx.getScope();
+      if (scope?.type === "capture" && scope.captureId === c.id) ctx.setScope({ ...scope });
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "re-summarize";
+    }
   });
 
   // Re-list whenever the tab becomes visible or a scan changes scope.

@@ -3,12 +3,14 @@
 // context is worse than a cold start). Rebuilds silently past the quota line.
 
 import { createAiSession, streamPrompt, sessionUsage } from "./language-model.js";
-import { buildSystemPrompt, buildQuestionPrompt } from "./prompts.js";
+import { buildSystemPrompt, buildQuestionPrompt, buildGeneralPrompt } from "./prompts.js";
+import { Router } from "./router.js";
 import { selectExcerpts } from "./retrieval.js";
 import { QUOTA_REBUILD_AT, MAX_CONTEXT_LINKS, getSettings } from "../shared/constants.js";
 import { normalizeUrl } from "../shared/url.js";
 
-const LINK_INTENT = /\b(links?|urls?|sources?|href|cite|citation|address(es)?)\b/i;
+// The page-grounded answer gave up; worth a second, general-knowledge pass.
+const NOT_ON_PAGE = /\b(does(n't| not) (say|mention|state|specify|include|contain|provide|indicate|list)|(is |are )?not (mentioned|stated|specified|provided|included|available|listed|given|found)|no (mention|indication|information|details?)|(cannot|can't|unable to|could not|couldn't) (find|locate|determine|tell|see))\b/i;
 
 export class ChatSessionManager {
   constructor() {
@@ -16,6 +18,12 @@ export class ChatSessionManager {
     this.session = null;
     this._creating = null;
     this.recentTurns = [];  // carried across a quota rebuild
+    this.router = new Router();
+  }
+
+  // Which path answers this question: "text" | "vision" | "links" | "general".
+  route(question) {
+    return this.router.route(question, { previous: this.recentTurns.at(-1)?.question });
   }
 
   setScope(scope) {
@@ -70,9 +78,9 @@ export class ChatSessionManager {
     return out;
   }
 
-  // Ask a question. onChunk(fullSoFar) streams the answer.
+  // Ask a question on a text route. onChunk(fullSoFar) streams the answer.
   // Returns { answer, trimmed } — trimmed=true when the session was rebuilt.
-  async ask(question, { onChunk, onDownload } = {}) {
+  async ask(question, { route = "text", onChunk, onDownload } = {}) {
     if (!this.scope) throw new Error("No scope — scan a page first.");
     let trimmed = false;
 
@@ -101,12 +109,33 @@ export class ChatSessionManager {
     const prev = this.recentTurns[this.recentTurns.length - 1];
     const retrievalQuery = prev ? `${prev.question} ${question}` : question;
     // History/bookmark chunks are one-liners — carry more of them.
-    const excerpts = selectExcerpts(retrievalQuery, this._captures(), this.scope.excerptK);
-    const links = LINK_INTENT.test(question) ? this._links() : [];
-    const prompt = buildQuestionPrompt(question, excerpts, links);
-    const answer = await streamPrompt(session, prompt, (full) => onChunk?.(full));
+    let prompt;
+    if (route === "general") {
+      prompt = buildGeneralPrompt(question);
+    } else {
+      const excerpts = selectExcerpts(retrievalQuery, this._captures(), this.scope.excerptK);
+      prompt = buildQuestionPrompt(question, excerpts, route === "links" ? this._links() : []);
+    }
+    let answer = await streamPrompt(session, prompt, (full) => onChunk?.(full));
+    if (route !== "general" && NOT_ON_PAGE.test(answer) && !/\(general knowledge\)/i.test(answer)) {
+      answer = await this._generalFollowUp(question, answer, onChunk);
+    }
     this.remember(question, answer);
     return { answer, trimmed };
+  }
+
+  // Throwaway session so the chat session's context stays page-grounded.
+  async _generalFollowUp(question, pageAnswer, onChunk) {
+    const head = `${pageAnswer.trim()}\n\n`;
+    const session = await createAiSession();
+    try {
+      const extra = await streamPrompt(session, buildGeneralPrompt(question), (full) => onChunk?.(head + full));
+      return head + extra;
+    } catch {
+      return pageAnswer;
+    } finally {
+      try { session.destroy?.(); } catch { /* ignore */ }
+    }
   }
 
   // Record a turn answered outside this session (e.g. vision) so follow-ups
