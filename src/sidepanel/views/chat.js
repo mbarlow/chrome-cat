@@ -547,8 +547,10 @@ export function createChatView(root, ctx) {
     try {
       const used = tiles.slice(0, MAX_VISION_TILES);
       const answer = await answerAboutTiles(question, used.map((t) => t.blob), {
+        history: ctx.session.recentTurns.slice(-2),
         onDownload: ctx.showDownload
       });
+      ctx.session.remember(question, answer);
       setAnswer(bubble, answer);
       if (tiles.length > used.length) {
         msgEl("note", `looked at the first ${used.length} of ${tiles.length} tiles`);

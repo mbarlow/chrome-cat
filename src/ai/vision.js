@@ -20,14 +20,19 @@ export async function getVisionAvailability() {
   }
 }
 
-// blobs: tile PNGs, top of page first. Returns the model's answer text.
-export async function answerAboutTiles(question, blobs, { onDownload } = {}) {
+// blobs: tile PNGs, top of page first. history: recent { question, answer }
+// turns, replayed so follow-ups stay consistent. Returns the answer text.
+export async function answerAboutTiles(question, blobs, { history = [], onDownload } = {}) {
   const { state, reason } = await getVisionAvailability();
   if (state === "missing" || state === "unavailable") {
     throw new Error(reason || "this model build doesn't accept image input");
   }
   const session = await LanguageModel.create({
     ...IMAGE_OPTIONS,
+    initialPrompts: history.flatMap((t) => [
+      { role: "user", content: t.question },
+      { role: "assistant", content: t.answer }
+    ]),
     monitor(m) {
       m.addEventListener("downloadprogress", (e) => {
         const pct = Math.max(0, Math.min(100, Math.round((e.loaded ?? 0) * 100)));
