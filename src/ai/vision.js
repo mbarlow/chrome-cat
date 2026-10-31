@@ -41,9 +41,10 @@ export async function answerAboutTiles(question, blobs, { onDownload } = {}) {
     const content = [
       {
         type: "text",
-        value:
-          `These ${bitmaps.length} images are sequential scans of one web page, ` +
-          `top to bottom. Answer from what you can see in them. ${question}`
+        value: (bitmaps.length === 1
+          ? "This image is a scan of a web page. Answer from what you can see in it. "
+          : `These ${bitmaps.length} images are sequential scans of one web page, ` +
+            "top to bottom. Answer from what you can see in them. ") + question
       },
       ...bitmaps.map((bm) => ({ type: "image", value: bm }))
     ];

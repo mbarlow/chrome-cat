@@ -40,3 +40,8 @@ export function escapeHtml(s) {
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
   }[c]));
 }
+
+// plural(1, "tile") → "1 tile"; plural(3, "tile") → "3 tiles".
+export function plural(n, word) {
+  return `${n} ${word}${n === 1 ? "" : "s"}`;
+}
