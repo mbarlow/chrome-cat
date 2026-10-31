@@ -59,11 +59,11 @@ export function parsePayloadKind(question) {
 
 // ---- payload assembly ----
 
-function slug(s) {
+export function slug(s) {
   return String(s || "page").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 50);
 }
 
-function stamp(ts = Date.now()) {
+export function stamp(ts = Date.now()) {
   return new Date(ts).toISOString().slice(0, 16).replace(/[:T]/g, "-");
 }
 
