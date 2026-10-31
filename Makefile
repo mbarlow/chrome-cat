@@ -20,7 +20,7 @@ VENDOR_FILES := \
 	lang/eng.traineddata.gz \
 	LICENSE-APACHE-2.0.txt
 
-.PHONY: help install icons vendor vendor-lock vendor-verify smoke repo package clean
+.PHONY: help install icons vendor vendor-lock vendor-verify smoke e2e repo package clean
 
 help:
 	@echo "chrome-cat v$(VERSION) — commands"
@@ -31,6 +31,7 @@ help:
 	@echo "  make vendor-verify - check vendor/tesseract against SHA256SUMS"
 	@echo "  make vendor-lock   - regenerate SHA256SUMS from what's on disk"
 	@echo "  make smoke     - headless boot + OCR + IDB smoke test (needs global playwright)"
+	@echo "  make e2e       - real Chrome + Gemini Nano: scan a fixture, chat through the panel"
 	@echo "  make repo      - git init + create private GitHub repo mbarlow/chrome-cat"
 	@echo "  make package   - create a versioned .zip for distribution"
 	@echo "  make clean     - remove build artifacts"
@@ -90,6 +91,9 @@ vendor-verify:
 
 smoke: vendor-verify
 	@node tools/smoke.mjs
+
+e2e: vendor-verify
+	@node tools/e2e.mjs
 
 repo:
 	@test -d .git || git init -b main

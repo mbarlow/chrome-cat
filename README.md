@@ -81,7 +81,10 @@ Add `vault → http://localhost:8787/inbox` under settings → webhooks, then
 ## Notes
 
 - Vanilla ES modules, no build step. `make help` for tasks, `make smoke`
-  for the headless test.
+  for the headless test, `make e2e` for the real thing: Google Chrome plus
+  its Gemini Nano install (copied into a throwaway profile) scans
+  `tools/e2e/` and chats through the panel. Failures are tagged TOOLING or
+  MODEL; `E2E_RETRIES` (default 1) bounds model retries.
 - Everything lives in local IndexedDB — settings shows usage and clears it.
 - No network at runtime. `make vendor` is the only thing that touches a CDN,
   at build time, pinned.
