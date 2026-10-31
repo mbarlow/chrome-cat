@@ -4,27 +4,12 @@
 // Needs a global playwright install (npm i -g playwright).
 
 import { createHash } from "node:crypto";
-import { mkdtempSync, rmSync, readdirSync } from "node:fs";
-import { tmpdir, homedir } from "node:os";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createRequire } from "node:module";
-import { execSync } from "node:child_process";
+import { loadPlaywright } from "./playwright.mjs";
 
-// Resolve playwright from a local node_modules, the global root, or nvm —
-// bare ESM imports can't see global installs.
-const require = createRequire(import.meta.url);
-function loadPlaywright() {
-  const roots = [""];
-  try { roots.push(execSync("npm root -g", { encoding: "utf8" }).trim()); } catch { /* no npm */ }
-  const nvm = join(homedir(), ".config/nvm/versions/node");
-  try { for (const v of readdirSync(nvm)) roots.push(join(nvm, v, "lib/node_modules")); } catch { /* no nvm */ }
-  for (const r of roots) {
-    try { return require(r ? join(r, "playwright") : "playwright"); } catch { /* next */ }
-  }
-  console.error("playwright not found — npm i -g playwright");
-  process.exit(2);
-}
 const { chromium } = loadPlaywright();
 
 const EXT = dirname(dirname(fileURLToPath(import.meta.url)));

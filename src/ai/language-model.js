@@ -47,9 +47,13 @@ const STUB_OUTPUT = /^(CPU|GPU) backend|Fastest inference|TopK: \d+, Temp:/;
 export const STUB_MESSAGE =
   "this browser build has a placeholder model, not Gemini Nano — use Google Chrome";
 
+export function isStubOutput(text) {
+  return STUB_OUTPUT.test(String(text ?? ""));
+}
+
 // Throws when text came from the placeholder backend; returns it otherwise.
 export function assertRealOutput(text) {
-  if (STUB_OUTPUT.test(String(text))) throw new Error(STUB_MESSAGE);
+  if (isStubOutput(text)) throw new Error(STUB_MESSAGE);
   return text;
 }
 
