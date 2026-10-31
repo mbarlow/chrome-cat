@@ -51,6 +51,10 @@ body {
 .dot.ok { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
 .dot.warn { background: var(--warn); }
 .dot.bad { background: var(--danger); }
+.modelbar { height: 2px; background: var(--line); overflow: hidden; flex: 0 0 auto; }
+.modelbar > div { height: 100%; width: 0; background: var(--warn); transition: width 0.3s; }
+.modelbar.indeterminate > div { width: 30%; animation: modelslide 1.2s ease-in-out infinite; }
+@keyframes modelslide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
 #aiStatus { flex: 1; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 #tabs { display: flex; gap: 4px; padding: 8px 12px 0; border-bottom: 1px solid var(--line); flex: 0 0 auto; }

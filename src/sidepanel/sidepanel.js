@@ -1,8 +1,8 @@
 // Sidepanel bootstrap: AI pill, tabs, shared ctx, view wiring (chrome-xray
 // router pattern). Scope = what the chat is about: one capture or a series.
 
-import { getAiAvailability } from "../ai/language-model.js";
 import { ChatSessionManager } from "../ai/session-manager.js";
+import { createModelStatus } from "./model-status.js";
 import { Mascot, loadMascotConfig } from "../mascot/mascot.js";
 import { createChatView } from "./views/chat.js";
 import { createArtifactsView } from "./views/artifacts.js";
@@ -37,35 +37,17 @@ function showView(name) {
   }
 }
 
-// ---- AI availability pill ----
-const aiDot = document.getElementById("aiDot");
-const aiStatus = document.getElementById("aiStatus");
-
-async function refreshAi() {
-  aiDot.className = "dot";
-  aiStatus.textContent = "checking model…";
-  const { state: s, reason } = await getAiAvailability();
-  const map = {
-    available: ["ok", "model ready"],
-    downloadable: ["warn", "model downloadable — first use will fetch it"],
-    downloading: ["warn", "model downloading…"],
-    unavailable: ["bad", "model unavailable on this device"],
-    missing: ["bad", reason || "LanguageModel missing (Chrome 138+ required)"]
-  };
-  const [cls, text] = map[s] || ["bad", s];
-  aiDot.classList.add(cls);
-  aiStatus.textContent = text;
-  aiStatus.title = reason || text;
-  return s;
-}
-
-function showDownload(pct) {
-  aiDot.className = "dot warn";
-  aiStatus.textContent = `model downloading… ${pct}%`;
-  if (pct >= 100) refreshAi();
-}
-
-document.getElementById("aiCheck").addEventListener("click", refreshAi);
+// ---- model status ----
+const model = createModelStatus({
+  dot: document.getElementById("aiDot"),
+  text: document.getElementById("aiStatus"),
+  bar: document.getElementById("aiBar"),
+  fill: document.getElementById("aiFill"),
+  button: document.getElementById("aiAction"),
+  onPhase: (p) => ctx.cat(p === "loading" ? "working" : "idle")
+});
+const refreshAi = model.refresh;
+const showDownload = model.showDownload;
 
 // ---- tabs ----
 for (const tab of document.querySelectorAll("#tabs .tab")) {

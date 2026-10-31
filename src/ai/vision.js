@@ -2,6 +2,8 @@
 // (chrome-snapshot inspector pattern). Fresh session per question, destroyed
 // in finally — the text chat session's quota stays untouched.
 
+import { assertRealOutput } from "./language-model.js";
+
 const IMAGE_OPTIONS = {
   expectedInputs: [{ type: "image" }, { type: "text", languages: ["en"] }],
   expectedOutputs: [{ type: "text", languages: ["en"] }]
@@ -45,7 +47,7 @@ export async function answerAboutTiles(question, blobs, { onDownload } = {}) {
       },
       ...bitmaps.map((bm) => ({ type: "image", value: bm }))
     ];
-    return await session.prompt([{ role: "user", content }]);
+    return assertRealOutput(await session.prompt([{ role: "user", content }]));
   } finally {
     for (const bm of bitmaps) bm.close();
     try { session.destroy?.(); } catch { /* ignore */ }
