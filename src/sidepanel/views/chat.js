@@ -12,10 +12,11 @@ import { parseSendCommand, parsePayloadKind, dispatchSend } from "../../actions/
 import { smartBookmark } from "../../actions/bookmark.js";
 import { historyCaptures, bookmarkCaptures } from "../../sources/browser.js";
 import { getSettings, MAX_VISION_TILES, CRAWL_TIMEOUT_MS, CRAWL_SETTLE_MS } from "../../shared/constants.js";
-import { escapeHtml, tokenize } from "../../shared/text.js";
+import { escapeHtml, tokenize, plural } from "../../shared/text.js";
+import { renderMarkdown } from "../../shared/markdown.js";
 import { normalizeUrl } from "../../shared/url.js";
 
-const VISION_INTENT = /\b(images?|pictures?|photos?|screenshots?|charts?|graphs?|diagrams?|logos?|icons?|layout|visual(ly)?|colors?|design|looks? like)\b/i;
+const VISION_INTENT = /\b(images?|pictures?|photos?|photographs?|paintings?|painted|artworks?|portraits?|illustrations?|drawings?|screenshots?|charts?|graphs?|diagrams?|logos?|icons?|layout|visual(ly)?|colou?rs?|design|looks? like|recogni[sz]e|pictured|(can|do) you see|what do you see)\b/i;
 
 // One chat thread per scope; memory/history/bookmarks each share thread id 0.
 function scopeIdOf(scope) {
@@ -107,7 +108,7 @@ export function createChatView(root, ctx) {
     let text = "";
     if (scope.type === "capture" && view.capture) {
       const c = view.capture;
-      text = `<div class="title">${escapeHtml(c.title)}</div><div class="url">${escapeHtml(c.url)} · ${c.tileCount} tiles · ${c.status}</div>`;
+      text = `<div class="title">${escapeHtml(c.title)}</div><div class="url">${escapeHtml(c.url)} · ${plural(c.tileCount, "tile")} · ${c.status}</div>`;
     } else if (scope.type === "series" && view.series) {
       text = `<div class="title">series: ${escapeHtml(view.series.name)}</div><div class="url">${view.captures.length} pages from ${escapeHtml(view.series.domain)}</div>`;
     } else if (scope.type === "memory") {
@@ -157,10 +158,15 @@ export function createChatView(root, ctx) {
     strip.hidden = true;
   }
 
+  function setAnswer(el, text) {
+    el.innerHTML = renderMarkdown(text);
+  }
+
   function msgEl(role, content) {
     const div = document.createElement("div");
     div.className = `msg ${role}`;
-    div.textContent = content;
+    if (role === "assistant") setAnswer(div, content);
+    else div.textContent = content;
     $("msgs").appendChild(div);
     $("msgs").scrollTop = $("msgs").scrollHeight;
     return div;
@@ -232,7 +238,7 @@ export function createChatView(root, ctx) {
     try {
       const capture = await capturePage(tab.id, tab.windowId, { onPhase });
       ctx.setScope({ type: "capture", captureId: capture.id });
-      ctx.toast(`Scanned: ${capture.tileCount} tiles.`);
+      ctx.toast(`Scanned: ${plural(capture.tileCount, "tile")}.`);
     } catch (err) {
       ctx.toast(`Scan failed: ${err?.message || err}`);
     } finally {
@@ -356,7 +362,7 @@ export function createChatView(root, ctx) {
       }
       const { answer, trimmed } = await ctx.session.ask(question, {
         onChunk: (full) => {
-          bubble.textContent = full;
+          setAnswer(bubble, full);
           $("msgs").scrollTop = $("msgs").scrollHeight;
         },
         onDownload: ctx.showDownload
@@ -541,9 +547,11 @@ export function createChatView(root, ctx) {
     try {
       const used = tiles.slice(0, MAX_VISION_TILES);
       const answer = await answerAboutTiles(question, used.map((t) => t.blob), {
+        history: ctx.session.recentTurns.slice(-2),
         onDownload: ctx.showDownload
       });
-      bubble.textContent = answer;
+      ctx.session.remember(question, answer);
+      setAnswer(bubble, answer);
       if (tiles.length > used.length) {
         msgEl("note", `looked at the first ${used.length} of ${tiles.length} tiles`);
       }
@@ -610,7 +618,7 @@ export function createChatView(root, ctx) {
       await new Promise((r) => setTimeout(r, CRAWL_SETTLE_MS));
       const capture = await capturePage(tab.id, tab.windowId, { onPhase });
       ctx.setScope({ type: "capture", captureId: capture.id });
-      ctx.toast(`Scanned: ${capture.tileCount} tiles.`);
+      ctx.toast(`Scanned: ${plural(capture.tileCount, "tile")}.`);
     } catch (err) {
       ctx.toast(`Couldn't scan it (${err?.message || err}) — hit Scan page once it loads.`);
     } finally {

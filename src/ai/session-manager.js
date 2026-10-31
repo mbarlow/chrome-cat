@@ -105,8 +105,14 @@ export class ChatSessionManager {
     const links = LINK_INTENT.test(question) ? this._links() : [];
     const prompt = buildQuestionPrompt(question, excerpts, links);
     const answer = await streamPrompt(session, prompt, (full) => onChunk?.(full));
+    this.remember(question, answer);
+    return { answer, trimmed };
+  }
+
+  // Record a turn answered outside this session (e.g. vision) so follow-ups
+  // on either path see it.
+  remember(question, answer) {
     this.recentTurns.push({ question, answer });
     if (this.recentTurns.length > 4) this.recentTurns.shift();
-    return { answer, trimmed };
   }
 }

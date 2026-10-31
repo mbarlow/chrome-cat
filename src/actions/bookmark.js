@@ -4,7 +4,7 @@
 // folder. Dupes are reported, never re-created.
 
 import { listBookmarkFolders } from "../sources/browser.js";
-import { getAiAvailability, createAiSession } from "../ai/language-model.js";
+import { getAiAvailability, createAiSession, assertRealOutput } from "../ai/language-model.js";
 import { tokenize } from "../shared/text.js";
 
 async function pickFolderWithModel(capture, folders) {
@@ -21,7 +21,7 @@ async function pickFolderWithModel(capture, folders) {
       `\nFolders:\n${list}`,
       { responseConstraint: { type: "string", enum: folders.map((f) => f.id) } }
     );
-    const id = String(out).replace(/"/g, "").trim();
+    const id = String(assertRealOutput(out)).replace(/"/g, "").trim();
     return folders.find((f) => f.id === id) || null;
   } catch {
     return null;

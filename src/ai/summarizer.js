@@ -1,7 +1,7 @@
 // Throwaway-session summarization (chrome-snapshot inspector pattern):
 // create → prompt → destroy, so chat-session quota stays untouched.
 
-import { createAiSession } from "./language-model.js";
+import { createAiSession, assertRealOutput } from "./language-model.js";
 import { buildSummaryPrompt, buildRollupPrompt } from "./prompts.js";
 import { SUMMARY_INPUT_CHARS } from "../shared/constants.js";
 import { refreshDomain } from "../db/memory.js";
@@ -9,7 +9,7 @@ import { refreshDomain } from "../db/memory.js";
 async function oneShot(prompt, { onDownload } = {}) {
   const session = await createAiSession({ onDownload });
   try {
-    return (await session.prompt(prompt)).trim();
+    return assertRealOutput(await session.prompt(prompt)).trim();
   } finally {
     try { session.destroy?.(); } catch { /* ignore */ }
   }

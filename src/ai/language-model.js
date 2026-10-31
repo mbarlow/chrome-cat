@@ -40,12 +40,41 @@ export async function createAiSession({ systemPrompt, languages = ["en"], onDown
   });
 }
 
-// Stream a prompt; onChunk(fullSoFar, delta) as text arrives.
+// Open-source Chromium builds (e.g. Arch's) ship a placeholder on-device
+// backend: it "answers" with its own config lines plus the echoed prompt.
+const STUB_OUTPUT = /^(CPU|GPU) backend|Fastest inference|TopK: \d+, Temp:/;
+
+export const STUB_MESSAGE =
+  "this browser build has a placeholder model, not Gemini Nano — use Google Chrome";
+
+// Throws when text came from the placeholder backend; returns it otherwise.
+export function assertRealOutput(text) {
+  if (STUB_OUTPUT.test(String(text))) throw new Error(STUB_MESSAGE);
+  return text;
+}
+
+// Create a throwaway session and ask for one word. Resolves { ok, reason? }.
+// Doubles as the warm-up that loads the model into memory.
+export async function probeModel() {
+  const session = await createAiSession();
+  try {
+    assertRealOutput(await session.prompt("Reply with the single word: ready"));
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: String(err?.message || err) };
+  } finally {
+    try { session.destroy?.(); } catch { /* ignore */ }
+  }
+}
+
+// Stream a prompt; onChunk(fullSoFar, delta) as text arrives. Stub output is
+// caught on the first chunk, before it reaches the chat bubble.
 export async function streamPrompt(session, prompt, onChunk) {
   const stream = session.promptStreaming(prompt);
   let full = "";
   for await (const chunk of stream) {
     full += chunk;
+    assertRealOutput(full);
     onChunk?.(full, chunk);
   }
   return full;

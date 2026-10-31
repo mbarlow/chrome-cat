@@ -29,8 +29,10 @@ make vendor icons
 
 Then load unpacked from the repo root.
 
-Chrome 138+ desktop. Gemini Nano downloads on first use
-(`chrome://on-device-internals` if it stalls).
+Google Chrome 138+ desktop. Gemini Nano downloads on first use — hit
+**download** in the panel header (`chrome://on-device-internals` if it stalls).
+Distro Chromium builds (e.g. Arch) ship a placeholder model that only echoes
+the prompt; the header flags it.
 
 ## Use it
 
