@@ -95,3 +95,137 @@ export function pageExtractDom() {
   }
   return { text: document.body?.innerText || "", links, images };
 }
+
+// Scroll to and highlight a passage of page text. Matching ignores case and
+// whitespace and may span elements; falls back to the passage's first 60
+// chars. Returns whether it was found.
+export function pageHighlight(passage) {
+  const skip = /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/;
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+    acceptNode: (n) => (n.parentElement && !skip.test(n.parentElement.tagName)
+      ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT)
+  });
+  let flat = "";
+  const map = [];
+  for (let n; (n = walker.nextNode());) {
+    const t = n.nodeValue;
+    for (let i = 0; i < t.length; i++) {
+      const c = /\s/.test(t[i]) ? " " : t[i].toLowerCase();
+      if (c === " " && (flat.endsWith(" ") || !flat)) continue;
+      flat += c;
+      map.push([n, i]);
+    }
+    if (!flat.endsWith(" ")) { flat += " "; map.push([n, t.length]); }
+  }
+  const target = String(passage).replace(/\s+/g, " ").trim().toLowerCase();
+  let at = flat.indexOf(target);
+  let len = target.length;
+  if (at < 0) {
+    len = Math.min(60, target.length);
+    at = flat.indexOf(target.slice(0, len));
+  }
+  if (at < 0 || !len) return false;
+  const [sn, so] = map[at];
+  const [en, eo] = map[at + len - 1];
+  const range = document.createRange();
+  range.setStart(sn, so);
+  range.setEnd(en, Math.min(eo + 1, en.nodeValue.length));
+  if (window.CSS?.highlights && window.Highlight) {
+    if (!document.querySelector("style[data-cc-highlight]")) {
+      const st = document.createElement("style");
+      st.setAttribute("data-cc-highlight", "1");
+      st.textContent = "::highlight(chrome-cat){background:#ffe066;color:#111}";
+      document.head.appendChild(st);
+    }
+    CSS.highlights.set("chrome-cat", new Highlight(range));
+  }
+  const sel = getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  sn.parentElement?.scrollIntoView({ block: "center", behavior: "smooth" });
+  return true;
+}
+
+// Let the user drag a box (or click an image) on the page; Esc cancels.
+// Resolves { x, y, w, h, vw, vh, notes } in CSS px — notes are the alt/title/
+// figcaption text of images the box mostly covers, or mostly sits inside —
+// or null.
+export function pageSelectRegion() {
+  return new Promise((resolve) => {
+    const ov = document.createElement("div");
+    Object.assign(ov.style, {
+      position: "fixed", inset: "0", zIndex: "2147483647", cursor: "crosshair",
+      background: "rgba(12,15,20,0.25)"
+    });
+    const box = document.createElement("div");
+    Object.assign(box.style, {
+      position: "fixed", border: "2px solid #5ad1c5", background: "rgba(90,209,197,0.15)",
+      display: "none", pointerEvents: "none"
+    });
+    ov.appendChild(box);
+    document.documentElement.appendChild(ov);
+    let x0 = null;
+    let y0 = null;
+
+    const notesIn = (r) => {
+      const out = [];
+      for (const img of document.querySelectorAll("img")) {
+        const b = img.getBoundingClientRect();
+        const ix = Math.max(0, Math.min(b.right, r.x + r.w) - Math.max(b.left, r.x));
+        const iy = Math.max(0, Math.min(b.bottom, r.y + r.h) - Math.max(b.top, r.y));
+        if (!b.width || ix * iy < 0.5 * Math.min(b.width * b.height, r.w * r.h)) continue;
+        const parts = [img.alt, img.title, img.getAttribute("aria-label"),
+          img.closest("figure")?.querySelector("figcaption")?.innerText]
+          .map((s) => (s || "").trim()).filter(Boolean);
+        const d = [...new Set(parts)].join(" — ").slice(0, 200);
+        if (d && !out.includes(d)) out.push(d);
+      }
+      return out;
+    };
+    const finish = (r) => {
+      ov.remove();
+      removeEventListener("keydown", onKey, true);
+      // Two frames so the overlay is gone from the next screenshot; the timer
+      // covers background tabs, where frames don't run.
+      let sent = false;
+      const send = () => {
+        if (sent) return;
+        sent = true;
+        resolve(r && { ...r, vw: innerWidth, vh: innerHeight, notes: notesIn(r) });
+      };
+      requestAnimationFrame(() => requestAnimationFrame(send));
+      setTimeout(send, 120);
+    };
+    const onKey = (e) => { if (e.key === "Escape") finish(null); };
+    addEventListener("keydown", onKey, true);
+
+    ov.addEventListener("mousedown", (e) => {
+      x0 = e.clientX;
+      y0 = e.clientY;
+      box.style.display = "block";
+      e.preventDefault();
+    });
+    ov.addEventListener("mousemove", (e) => {
+      if (x0 === null) return;
+      Object.assign(box.style, {
+        left: `${Math.min(x0, e.clientX)}px`, top: `${Math.min(y0, e.clientY)}px`,
+        width: `${Math.abs(e.clientX - x0)}px`, height: `${Math.abs(e.clientY - y0)}px`
+      });
+    });
+    ov.addEventListener("mouseup", (e) => {
+      if (x0 === null) return;
+      const r = { x: Math.min(x0, e.clientX), y: Math.min(y0, e.clientY),
+        w: Math.abs(e.clientX - x0), h: Math.abs(e.clientY - y0) };
+      if (r.w >= 12 && r.h >= 12) { finish(r); return; }
+      // A click: take the image-like element under the cursor, if any.
+      ov.style.pointerEvents = "none";
+      const el = document.elementFromPoint(e.clientX, e.clientY)?.closest("img, svg, canvas, video, picture");
+      ov.style.pointerEvents = "";
+      if (!el) { x0 = null; box.style.display = "none"; return; }
+      const b = el.getBoundingClientRect();
+      const x = Math.max(0, b.left);
+      const y = Math.max(0, b.top);
+      finish({ x, y, w: Math.min(innerWidth, b.right) - x, h: Math.min(innerHeight, b.bottom) - y });
+    });
+  });
+}

@@ -50,6 +50,7 @@ Hit **Scan page**, then talk:
 | `email the pdf version` | saves the PDF + opens the draft — one drag attaches |
 | `copy that` / `save the chat as markdown` | clipboard / `Downloads/chrome-cat/` |
 | `send the summary to vault` | POST to a named webhook (settings) |
+| `make a table of the prices` | a table from page text — ⤓ csv, ⤓ json, ⧉ copy |
 | `/bookmark` | files the page into your bookmark folders, model-picked |
 | `any images on the page?` | the model looks at the actual scan tiles |
 | `read it to me` | speaks the answer |
@@ -64,8 +65,15 @@ capture memory and jump straight to a page + its chat.
 **Artifacts tab** — every scan's tiles, OCR text, and DOM text: view, copy,
 export, re-summarize. The ⤓ button saves any chat as clean markdown.
 
+**Sources** — answers grounded in the page carry ↗ chips under them; click
+one to jump to the passage on the live page, highlighted.
+
+**⌗ region** — drag a box on the page (or click an image) and ask about just
+that, at full resolution. Labelled images inside it bring their alt text.
+Every question uses the region until you hit ✕.
+
 **How it answers** — the model routes each question to page text, a look
-at the scan tiles, the page's links, or general knowledge (keyword rules if
+at the scan tiles, the page's links, a table, or general knowledge (keyword rules if
 it can't). Image questions also get the page's alt text and captions.
 "Who painted this" is asked twice independently; agreement is stated,
 disagreement is hedged (hover the answer to see both guesses). When the

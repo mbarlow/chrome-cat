@@ -4,9 +4,10 @@
 
 import { createAiSession, assertRealOutput } from "./language-model.js";
 
-export const ROUTES = ["text", "vision", "links", "general"];
+export const ROUTES = ["text", "vision", "links", "table", "general"];
 
 const VISION_WORDS = /\b(images?|pictures?|photos?|photographs?|paintings?|painted|artworks?|portraits?|illustrations?|drawings?|screenshots?|charts?|graphs?|diagrams?|logos?|icons?|layout|visual(ly)?|colou?rs?|design|looks? like|recogni[sz]e|pictured|(can|do) you see|what do you see)\b/i;
+const TABLE_WORDS = /\b(table|tabulate|csv|json|spreadsheet|columns?)\b/i;
 const LINK_WORDS = /\b(links?|urls?|sources?|href|cite|citation|address(es)?)\b/i;
 
 const SYSTEM =
@@ -15,6 +16,7 @@ const SYSTEM =
   "vision — needs to look at the page: images, paintings, photos, who painted or made " +
   "something shown, layout, colors, design, what something looks like\n" +
   "links — asks for the page's links, URLs or sources\n" +
+  "table — wants page data extracted as a table, CSV, JSON or spreadsheet\n" +
   "general — world knowledge that has nothing to do with this page";
 
 const EXAMPLES = [
@@ -22,11 +24,14 @@ const EXAMPLES = [
   ["who painted the portrait?", "vision"],
   ["what color is the header?", "vision"],
   ["list the links", "links"],
+  ["make a table of the prices", "table"],
+  ["export the schedule as csv", "table"],
   ["how tall is mount everest?", "general"],
   ["when does the store open?", "text"]
 ];
 
 export function routeByKeywords(question) {
+  if (TABLE_WORDS.test(question)) return "table";
   if (VISION_WORDS.test(question)) return "vision";
   if (LINK_WORDS.test(question)) return "links";
   return "text";
@@ -39,7 +44,8 @@ export class Router {
 
   async _session() {
     if (!this.base) {
-      this.base = createAiSession({ systemPrompt: SYSTEM }).then(async (s) => {
+      // Near-greedy sampling: a classifier should give the same route twice.
+      this.base = createAiSession({ systemPrompt: SYSTEM, sampling: { temperature: 0.1, topK: 1 } }).then(async (s) => {
         await s.append?.(EXAMPLES.flatMap(([q, r]) => [
           { role: "user", content: q }, { role: "assistant", content: r }
         ]));

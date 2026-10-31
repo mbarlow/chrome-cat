@@ -112,6 +112,13 @@ async function run() {
     await panel.evaluate(async (u) => {
       const w = await chrome.windows.create({ url: u, focused: false, width: 1280, height: 1000 });
       const query = chrome.tabs.query.bind(chrome.tabs);
+      // Record downloads so checks can read them back (Playwright renames files).
+      const download = chrome.downloads.download.bind(chrome.downloads);
+      window.__downloads = [];
+      chrome.downloads.download = async (opts) => {
+        window.__downloads.push({ ...opts, body: await fetch(opts.url).then((r) => r.text()).catch(() => null) });
+        return download(opts);
+      };
       chrome.tabs.query = (q, ...rest) =>
         (q?.currentWindow || q?.lastFocusedWindow) && q?.active
           ? query({ active: true, windowId: w.id }, ...rest)
@@ -154,12 +161,17 @@ async function run() {
     results.push({ name: "markdown rendered", ok: md === 0, kind: "tooling", answer: `${md} bubbles with raw **` });
     const flicker = await panel.evaluate(() => window.__status);
     results.push({ name: "status steady", ok: flicker.length === 0, kind: "tooling", answer: JSON.stringify(flicker) });
+    const site = ctx.pages().find((p) => p.url().startsWith(url));
+    if (!site) throw new ToolingError("fixture page not found among tabs");
+    results.push(await sources(panel, site));
+    results.push(await table(panel));
+    results.push(await region(panel, site));
     results.push(await resummarize(panel));
     results.push({ name: "no page errors", ok: errors.length === 0, kind: "tooling", answer: errors.join(" | ") });
+    await panel.screenshot({ path: join(OUT, "panel.png") });
     results.push(await cleanup(panel));
 
     for (const r of results.slice(CHECKS.length)) log(r.ok ? "PASS " : "TOOL ", r.name, r.ok ? "" : `— ${r.answer}`);
-    await panel.screenshot({ path: join(OUT, "panel.png") });
     log("screenshot:", join(OUT, "panel.png"));
   } finally {
     await ctx?.close().catch(() => {});
@@ -186,6 +198,99 @@ async function ask(panel, check) {
   if (title) log("      ", title);
   const ok = check.text.test(answer) && (!check.route || route.split("/")[0] === check.route);
   return { name: check.name, ok, kind: "model", answer, route, attempts: check.attempts };
+}
+
+// The "cat's name" answer must carry a source chip that, clicked, selects
+// the passage on the live page.
+async function sources(panel, site) {
+  const name = "source highlight";
+  const chip = panel.locator(".msg.assistant .src", { hasText: /biscuit/i }).first();
+  if (!await chip.count()) return { name, ok: false, kind: "model", answer: "no source chip mentioning Biscuit" };
+  await site.evaluate(() => { getSelection().removeAllRanges(); scrollTo(0, 0); });
+  await chip.click();
+  const selected = await poll(async () => /biscuit/i.test(await site.evaluate(() => getSelection().toString())), 10_000);
+  const text = await site.evaluate(() => getSelection().toString());
+  return { name, ok: selected, kind: "tooling", answer: `selected: "${text}"` };
+}
+
+// "table of ticket prices" must route to table with the three prices, and
+// ⤓ csv must produce a file with them (removed afterwards).
+async function table(panel) {
+  const name = "table extraction";
+  const before = await panel.locator(".msg.assistant").count();
+  await panel.fill("#input", "make a table of the ticket prices");
+  await panel.press("#input", "Enter");
+  await panel.waitForTimeout(300);
+  await poll(async () => await panel.isEnabled("#scanBtn") && (await panel.locator(".msg.assistant").count()) > before, ANSWER_MS);
+  const last = panel.locator(".msg.assistant").last();
+  const route = await last.getAttribute("data-route");
+  const cells = await last.locator("table.datatable").innerText().catch(() => "");
+  const prices = ["12", "6", "9"].every((p) => cells.includes(p));
+  log(`       [${route}] table:`, cells.replace(/\s+/g, " ").slice(0, 160));
+  if (route !== "table" || !prices) return { name, ok: false, kind: "model", answer: `route=${route}, cells="${cells.slice(0, 120)}"` };
+  await last.locator('button[data-fmt="csv"]').click();
+  await poll(() => panel.evaluate(() => window.__downloads.some((d) => d.filename.endsWith(".csv"))), 10_000);
+  const csv = await panel.evaluate(() => window.__downloads.find((d) => d.filename.endsWith(".csv")));
+  const ok = !!csv?.body && ["12", "6", "9"].every((p) => csv.body.includes(p));
+  return { name, ok, kind: "tooling", answer: csv ? `${csv.filename}: ${JSON.stringify(csv.body)}` : "no csv download" };
+}
+
+// ⌗ region → drag over the portrait → "who painted this?" must answer from
+// the region (data-route=region) using the image's alt text.
+async function region(panel, site) {
+  const name = "region ask";
+  await site.evaluate(() => document.querySelector("img").scrollIntoView({ block: "center" }));
+  const b = await site.locator("img").boundingBox();
+  await panel.click("#regionBtn");
+  // Synthetic input only reaches a window that is actually shown.
+  await site.bringToFront();
+  const overlay = await poll(() => site.evaluate(() =>
+    getComputedStyle(document.elementFromPoint(innerWidth / 2, innerHeight / 2)).cursor === "crosshair"), 10_000, 100);
+  if (!overlay) return { name, ok: false, kind: "tooling", answer: "region overlay never appeared" };
+  await site.evaluate(() => {
+    window.__ev = [];
+    for (const t of ["mousedown", "mouseup"]) {
+      addEventListener(t, (e) => window.__ev.push(`${t}@${e.clientX},${e.clientY}`), true);
+    }
+  });
+  // Drag across the image's visible part: tiled windows can be shorter than
+  // the image, and the overlay only sees in-viewport presses.
+  const vh = await site.evaluate(() => innerHeight);
+  const top = Math.max(b.y, 0) + 2;
+  const bottom = Math.min(b.y + b.height, vh) - 2;
+  await site.mouse.move(b.x + 2, top);
+  await site.mouse.down();
+  await site.mouse.move(b.x + b.width / 2, (top + bottom) / 2, { steps: 5 });
+  await site.mouse.move(b.x + b.width - 2, bottom, { steps: 5 });
+  await site.mouse.up();
+  if (!await poll(() => panel.isVisible("#attach"), 10_000)) {
+    const state = await site.evaluate(() => ({
+      events: window.__ev,
+      overlay: [...document.documentElement.children].some((e) => e.style?.cursor === "crosshair"),
+      focused: document.hasFocus(), visible: document.visibilityState
+    }));
+    return { name, ok: false, kind: "tooling", answer: `no region attached (toast: "${await panel.textContent("#toast")}", page: ${JSON.stringify(state)})` };
+  }
+  log("      ", await panel.textContent("#attachText"));
+  const r = await ask(panel, { name, ask: "who painted this?", text: /eyck/i, route: "region" });
+  log(`       [${r.route}]`, r.answer.replace(/\s+/g, " ").slice(0, 200));
+  const saved = await panel.evaluate(async () => {
+    const db = await import("../db/captures.js");
+    const chats = await import("../db/chats.js");
+    const [c] = await db.listCaptures(1);
+    const chat = await chats.getOrCreateChat("capture", c.id);
+    return chat.messages.slice(-2).map((m) => `${m.role}: ${m.content.slice(0, 40)}`);
+  });
+  log("       saved:", JSON.stringify(saved));
+  if (!saved.some((m) => m.startsWith("user: who painted this?"))) {
+    r.ok = false;
+    r.kind = "tooling";
+    r.answer = `region exchange not saved to the chat (last: ${JSON.stringify(saved)})`;
+  }
+  await panel.locator(".msg.tablemsg").last().scrollIntoViewIfNeeded();
+  await panel.screenshot({ path: join(OUT, "region.png") });
+  await panel.click("#attachClear");
+  return r;
 }
 
 // Artifacts → re-summarize must replace the stored summary with model text.

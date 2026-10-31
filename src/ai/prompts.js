@@ -57,6 +57,24 @@ export function buildQuestionPrompt(question, excerpts, links = []) {
   return `${parts.join("\n\n")}\n\n[Question]\n${question}`;
 }
 
+// Structured extraction; the reply is constrained to TABLE_SCHEMA.
+export function buildTablePrompt(question, excerpts) {
+  const body = excerpts.map((e) => (e.label ? `[${e.label}]\n${e.text}` : e.text)).join("\n\n---\n\n");
+  return "Extract the data the user asks for from the page excerpts into a table. Use only " +
+    "values that appear in the excerpts; leave a cell empty rather than invent it. Reply as JSON " +
+    "with \"columns\" (short header names) and \"rows\" (arrays of cell strings, one per column).\n\n" +
+    `[Relevant page excerpts]\n${body}\n\n[Request]\n${question}`;
+}
+
+export const TABLE_SCHEMA = {
+  type: "object",
+  properties: {
+    columns: { type: "array", items: { type: "string" } },
+    rows: { type: "array", items: { type: "array", items: { type: "string" } } }
+  },
+  required: ["columns", "rows"]
+};
+
 // No page excerpts: the question is about the world, not the page.
 export function buildGeneralPrompt(question) {
   return "Answer from your own general knowledge, briefly. Begin with \"(general knowledge)\". " +
@@ -75,10 +93,13 @@ export function buildRollupPrompt(domain, pageSummaries) {
     pageSummaries.map((s, i) => `${i + 1}. ${s}`).join("\n");
 }
 
+export const IMAGE_CHUNK_HEAD =
+  "Images, photos and paintings on this page, as described by the page's alt text and captions:";
+
 // What the page's HTML says about its images, as one retrievable chunk.
 export function describeImages(images = []) {
   if (!images.length) return "";
-  return "Images, photos and paintings on this page, as described by the page's alt text and captions:\n" +
+  return `${IMAGE_CHUNK_HEAD}\n` +
     images.map((d, i) => `${i + 1}. ${d}`).join("\n");
 }
 

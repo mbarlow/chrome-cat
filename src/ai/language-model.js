@@ -22,12 +22,15 @@ export async function getAiAvailability(options = TEXT_OPTIONS) {
 }
 
 // Create a session. First call may trigger model download; report progress via
-// onDownload(pct). Must follow a user gesture.
-export async function createAiSession({ systemPrompt, languages = ["en"], onDownload } = {}) {
+// onDownload(pct). Must follow a user gesture. sampling { temperature, topK }
+// is applied only where the build exposes LanguageModel.params().
+export async function createAiSession({ systemPrompt, languages = ["en"], onDownload, sampling } = {}) {
   if (typeof LanguageModel === "undefined") {
     throw new Error("LanguageModel global is not available.");
   }
+  const tuned = sampling && await LanguageModel.params?.().catch(() => null) ? sampling : {};
   return LanguageModel.create({
+    ...tuned,
     expectedInputs: [{ type: "text", languages }],
     expectedOutputs: [{ type: "text", languages }],
     initialPrompts: systemPrompt ? [{ role: "system", content: systemPrompt }] : [],

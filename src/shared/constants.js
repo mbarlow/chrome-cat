@@ -17,6 +17,7 @@ export const OCR_IDLE_MS = 60_000;    // terminate the Tesseract worker after id
 // Chat / retrieval
 export const CHUNK_CHARS = 800;       // DOM-text chunk size for retrieval
 export const TOP_CHUNKS = 3;          // excerpts per question
+export const MAX_TABLE_ROWS = 50;     // extraction cap per table
 export const QUOTA_REBUILD_AT = 0.8;  // rebuild session past this inputQuota fraction
 export const SUMMARY_INPUT_CHARS = 4000; // text fed to the summarizer
 

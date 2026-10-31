@@ -15,6 +15,8 @@ import { getSettings, MAX_VISION_TILES, CRAWL_TIMEOUT_MS, CRAWL_SETTLE_MS } from
 import { escapeHtml, tokenize, plural } from "../../shared/text.js";
 import { renderMarkdown } from "../../shared/markdown.js";
 import { normalizeUrl } from "../../shared/url.js";
+import { captureRegion, showSource } from "../../capture/region.js";
+import { toMarkdownTable, downloadTable } from "../../actions/table.js";
 
 
 // One chat thread per scope; memory/history/bookmarks each share thread id 0.
@@ -49,6 +51,7 @@ export function createChatView(root, ctx) {
     <div class="actions">
       <button class="primary" id="scanBtn">Scan page</button>
       <button id="followBtn" disabled>Follow links</button>
+      <button id="regionBtn" title="Drag a box on the page (or click an image), then ask about it">⌗ region</button>
       <button id="dlChatBtn" class="ghost" title="Save this chat as markdown">⤓ chat</button>
       <button id="cancelBtn" class="danger" hidden>Cancel</button>
     </div>
@@ -57,6 +60,11 @@ export function createChatView(root, ctx) {
       <div class="track"><div class="fill" id="progressFill"></div></div>
     </div>
     <div class="msgs" id="msgs"></div>
+    <div class="attach" id="attach" hidden>
+      <img id="attachImg" alt="selected region" />
+      <span id="attachText"></span>
+      <button class="mini ghost" id="attachClear" title="Stop asking about this region">✕</button>
+    </div>
     <div class="composer">
       <textarea id="input" placeholder="Ask about this page… (/follow crawls links · 'open the pricing page' navigates + scans)"></textarea>
       <button class="primary" id="sendBtn">▶</button>
@@ -71,7 +79,8 @@ export function createChatView(root, ctx) {
     captures: [],    // series member rows (series scope)
     crawlControl: null,
     busy: false,
-    thumbUrl: null   // scopebar thumbnail blob URL, revoked on re-render
+    thumbUrl: null,  // scopebar thumbnail blob URL, revoked on re-render
+    region: null     // { blob, w, h, notes, url, preview } while a region is attached
   };
 
   // ---- rendering ----
@@ -79,6 +88,7 @@ export function createChatView(root, ctx) {
   function setBusy(b) {
     view.busy = b;
     $("scanBtn").disabled = b;
+    $("regionBtn").disabled = b;
     $("followBtn").disabled = b || !view.capture || view.capture.status !== "ready" || !view.capture.links?.length;
     $("dlChatBtn").disabled = b || !ctx.getScope();
     $("sendBtn").disabled = b;
@@ -161,14 +171,76 @@ export function createChatView(root, ctx) {
     el.innerHTML = renderMarkdown(text);
   }
 
-  function msgEl(role, content) {
+  // extra: { sources, table } from a stored or fresh assistant message.
+  function msgEl(role, content, extra = {}) {
     const div = document.createElement("div");
     div.className = `msg ${role}`;
-    if (role === "assistant") setAnswer(div, content);
+    if (extra.table) renderTable(div, extra.table);
+    else if (role === "assistant") setAnswer(div, content);
     else div.textContent = content;
+    if (extra.sources?.length) addSources(div, extra.sources);
     $("msgs").appendChild(div);
     $("msgs").scrollTop = $("msgs").scrollHeight;
     return div;
+  }
+
+  // Source chips; clicking one opens the page and highlights the passage.
+  function addSources(el, sources) {
+    el.querySelector(".sources")?.remove();
+    const wrap = document.createElement("div");
+    wrap.className = "sources";
+    for (const s of sources) {
+      const b = document.createElement("button");
+      b.className = "src";
+      b.dataset.url = s.url;
+      b.dataset.passage = s.passage;
+      b.title = `${s.title || s.url}\n${s.passage}`;
+      b.textContent = `↗ “${s.passage.length > 70 ? `${s.passage.slice(0, 70)}…` : s.passage}”`;
+      wrap.appendChild(b);
+    }
+    el.appendChild(wrap);
+  }
+
+  function renderTable(el, table) {
+    el.replaceChildren();
+    el.classList.add("tablemsg");
+    const t = document.createElement("table");
+    t.className = "datatable";
+    const head = t.createTHead().insertRow();
+    for (const c of table.columns) head.appendChild(Object.assign(document.createElement("th"), { textContent: c }));
+    const body = t.createTBody();
+    for (const r of table.rows) {
+      const tr = body.insertRow();
+      for (const v of r) tr.insertCell().textContent = v;
+    }
+    const scroll = document.createElement("div");
+    scroll.className = "tablewrap";
+    scroll.appendChild(t);
+    const actions = document.createElement("div");
+    actions.className = "tableactions";
+    for (const [fmt, label] of [["csv", "⤓ csv"], ["json", "⤓ json"], ["copy", "⧉ copy"]]) {
+      const b = document.createElement("button");
+      b.className = "mini";
+      b.dataset.fmt = fmt;
+      b.textContent = label;
+      b.addEventListener("click", () => tableAction(table, fmt));
+      actions.appendChild(b);
+    }
+    el.append(scroll, actions);
+  }
+
+  async function tableAction(table, fmt) {
+    try {
+      if (fmt === "copy") {
+        await navigator.clipboard.writeText(toMarkdownTable(table));
+        ctx.toast("Copied table as markdown.");
+        return;
+      }
+      const c = view.capture || view.captures[0];
+      ctx.toast(`Saved ${await downloadTable(table, fmt, { domain: c?.domain, title: c?.title })}`);
+    } catch (err) {
+      ctx.toast(`Couldn't save: ${err?.message || err}`);
+    }
   }
 
   async function renderHistory() {
@@ -176,7 +248,7 @@ export function createChatView(root, ctx) {
     const scope = ctx.getScope();
     if (!scope) return;
     const chat = await getOrCreateChat(scope.type, scopeIdOf(scope));
-    for (const m of chat.messages) msgEl(m.role, m.content);
+    for (const m of chat.messages) msgEl(m.role, m.content, m);
   }
 
   function renderUsage() {
@@ -340,6 +412,11 @@ export function createChatView(root, ctx) {
       return;
     }
 
+    if (view.region) {
+      await askRegion(question);
+      return;
+    }
+
     const scope = ctx.getScope();
     if (!scope) {
       ctx.toast("Scan a page first.");
@@ -362,7 +439,14 @@ export function createChatView(root, ctx) {
       }
       if (route === "vision") route = "text";
       bubble.dataset.route = route;
-      const { answer, trimmed } = await ctx.session.ask(question, {
+      if (route === "table") {
+        const { sources, ...table } = await ctx.session.table(question);
+        renderTable(bubble, table);
+        if (sources.length) addSources(bubble, sources);
+        await appendMessage(scope.type, scopeId, { role: "assistant", content: toMarkdownTable(table), table, sources });
+        return;
+      }
+      const { answer, trimmed, sources } = await ctx.session.ask(question, {
         route,
         onChunk: (full) => {
           setAnswer(bubble, full);
@@ -370,8 +454,9 @@ export function createChatView(root, ctx) {
         },
         onDownload: ctx.showDownload
       });
+      if (sources.length) addSources(bubble, sources);
       if (trimmed) msgEl("note", "context trimmed — session rebuilt");
-      await appendMessage(scope.type, scopeId, { role: "assistant", content: answer });
+      await appendMessage(scope.type, scopeId, { role: "assistant", content: answer, sources });
     } catch (err) {
       bubble.textContent = `⚠ ${err?.message || err}`;
       bubble.classList.add("note");
@@ -573,7 +658,91 @@ export function createChatView(root, ctx) {
     }
   }
 
+  // ---- region asks ----
+
+  function setRegion(region) {
+    if (view.region?.preview) URL.revokeObjectURL(view.region.preview);
+    view.region = region;
+    $("attach").hidden = !region;
+    if (!region) return;
+    region.preview = URL.createObjectURL(region.blob);
+    $("attachImg").src = region.preview;
+    $("attachText").textContent = `asking about this region (${region.w}×${region.h})` +
+      (region.notes.length ? ` · ${region.notes.length} labelled image${region.notes.length === 1 ? "" : "s"}` : "");
+  }
+
+  async function pickRegion() {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !/^https?:/.test(tab.url || "")) {
+      ctx.toast("Regions work on http/https pages.");
+      return;
+    }
+    if (!(await hasAllUrls())) await requestAllUrls().catch(() => {});
+    ctx.toast("Drag a box on the page, or click an image. Esc cancels.");
+    $("regionBtn").disabled = true;
+    try {
+      const region = await captureRegion(tab);
+      if (region) {
+        setRegion(region);
+        $("input").focus();
+      }
+    } catch (err) {
+      ctx.toast(`Couldn't capture the region: ${err?.message || err}`);
+    } finally {
+      $("regionBtn").disabled = view.busy;
+    }
+  }
+
+  // The attached region answers every question until it's cleared. Saved to
+  // the scope's thread when there is one.
+  async function askRegion(question) {
+    const scope = ctx.getScope();
+    const save = (m) => (scope ? appendMessage(scope.type, scopeIdOf(scope), m) : null);
+    msgEl("user", question);
+    await save({ role: "user", content: question });
+    const bubble = msgEl("assistant", "👁 looking at the region…");
+    bubble.dataset.route = "region";
+    setBusy(true);
+    ctx.cat("replying");
+    try {
+      const { answer, check, guesses } = await answerAboutTiles(question, [view.region.blob], {
+        history: ctx.session.recentTurns.slice(-2),
+        notes: view.region.notes,
+        intro: "This image is a region the user selected on a web page. Answer from what you can see in it.",
+        onDownload: ctx.showDownload
+      });
+      ctx.session.remember(question, answer);
+      if (check) {
+        bubble.dataset.check = check;
+        bubble.title = `identification cross-check: ${check} — ${guesses}`;
+      }
+      setAnswer(bubble, answer);
+      await save({ role: "assistant", content: answer });
+    } catch (err) {
+      bubble.textContent = `⚠ ${err?.message || err}`;
+      bubble.classList.add("note");
+    } finally {
+      setBusy(false);
+      ctx.cat("idle");
+      $("msgs").scrollTop = $("msgs").scrollHeight;
+    }
+  }
+
   // ---- wiring ----
+  $("regionBtn").addEventListener("click", pickRegion);
+  $("attachClear").addEventListener("click", () => setRegion(null));
+  $("msgs").addEventListener("click", async (e) => {
+    const b = e.target.closest("button.src");
+    if (!b) return;
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) return;
+    try {
+      const found = await showSource(tab, b.dataset.url, b.dataset.passage);
+      if (!found) ctx.toast("Opened the page, but that passage isn't on it anymore.");
+    } catch (err) {
+      ctx.toast(`Couldn't open the source: ${err?.message || err}`);
+    }
+  });
   $("scanBtn").addEventListener("click", scan);
   $("followBtn").addEventListener("click", followLinks);
   $("dlChatBtn").addEventListener("click", async () => {

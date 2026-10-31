@@ -69,7 +69,8 @@ async function crossCheck(base) {
 // descriptions (alt text, captions). Returns { answer, check } where check is
 // the cross-check outcome ("agreed" | "disagreed" | "unknown") or null, and
 // guesses lists what the two samples named.
-export async function answerAboutTiles(question, blobs, { history = [], notes = [], onDownload } = {}) {
+// intro overrides the default "scan of a web page" framing.
+export async function answerAboutTiles(question, blobs, { history = [], notes = [], intro: framing, onDownload } = {}) {
   const { state, reason } = await getVisionAvailability();
   if (state === "missing" || state === "unavailable") {
     throw new Error(reason || "this model build doesn't accept image input");
@@ -90,10 +91,10 @@ export async function answerAboutTiles(question, blobs, { history = [], notes = 
   const bitmaps = [];
   try {
     for (const b of blobs) bitmaps.push(await createImageBitmap(b));
-    const intro = (bitmaps.length === 1
+    const intro = (framing || (bitmaps.length === 1
       ? "This image is a scan of a web page. Answer from what you can see in it."
       : `These ${bitmaps.length} images are sequential scans of one web page, top to bottom. ` +
-        "Answer from what you can see in them.") +
+        "Answer from what you can see in them.")) +
       (notes.length ? `\n\n${describeImages(notes)}\nTrust these descriptions over your own guesses.` : "");
     const pageContent = [{ type: "text", value: intro }, ...bitmaps.map((bm) => ({ type: "image", value: bm }))];
 

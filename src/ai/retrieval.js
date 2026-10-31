@@ -4,7 +4,7 @@
 import { tokenize } from "../shared/text.js";
 import { TOP_CHUNKS } from "../shared/constants.js";
 
-// chunks: [{ text, label? }] -> top-k [{ text, label, score }]
+// chunks: [{ text, label?, url?, title? }] -> top-k, same shape plus score
 export function topChunks(question, chunks, k = TOP_CHUNKS) {
   const qTerms = [...new Set(tokenize(question))];
   if (!qTerms.length || !chunks.length) return [];
@@ -26,6 +26,8 @@ export function topChunks(question, chunks, k = TOP_CHUNKS) {
     .map((d) => ({
       text: d.text,
       label: d.label,
+      url: d.url,
+      title: d.title,
       score: qTerms.reduce((s, t) => s + ((d.tf.get(t) || 0) / d.len) * idf.get(t), 0)
     }))
     .filter((d) => d.score > 0)
@@ -47,12 +49,12 @@ export function selectExcerpts(retrievalQuery, captures, k = TOP_CHUNKS) {
 export function scopeChunks(captures) {
   const out = [];
   for (const c of captures) {
-    const label = captures.length > 1 ? c.title : null;
+    const meta = { label: captures.length > 1 ? c.title : null, url: c.url, title: c.title };
     if (c.domChunks?.length) {
-      for (const text of c.domChunks) out.push({ text, label });
+      for (const text of c.domChunks) out.push({ text, ...meta });
     } else if (c.ocrText) {
       for (const text of c.ocrText.split(/\n\n--- page \d+ ---\n\n/).filter(Boolean)) {
-        out.push({ text, label });
+        out.push({ text, ...meta });
       }
     }
   }
