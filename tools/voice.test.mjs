@@ -38,7 +38,7 @@ class Worker {
 globalThis.Worker=Worker;
 const {createConversation}=await import('../src/voice/conversation.js');
 const {speechText,stopSpeech}=await import('../src/voice/speech.js');
-const {inputStatus}=await import('../src/voice/input.js');
+const {inputStatus,requestMicrophoneAccess}=await import('../src/voice/input.js');
 const {getSettings,saveSettings}=await import('../src/shared/constants.js');
 const tick=()=>new Promise(resolve=>setTimeout(resolve,10));
 async function setup(onTurn=async()=> 'A reply.'){
@@ -54,6 +54,8 @@ afterEach(()=>{
   saved={};micStarts=micAborts=0;speeches=[];availability='available';
   globalThis.SpeechRecognition=Recognition;
   chrome.storage.local.get=async()=>saved;
+  delete navigator.permissions;
+  delete navigator.mediaDevices;
 });
 
 test('voice defaults off and invalid voice values normalize',async()=>{
@@ -124,4 +126,25 @@ test('late end event cannot detach a newer microphone session',async()=>{
   const oldEnd=Recognition.current.onend;c.stop();await c.start();
   oldEnd();c.stop();
   assert.equal(micAborts,2);assert.equal(Recognition.current,null);
+});
+for (const permission of ['prompt','denied']) {
+  test(`microphone ${permission} offers setup without starting recognition`,async()=>{
+    navigator.permissions={query:async()=>({state:permission})};
+    const {c,states}=await setup();await c.start();
+    assert.equal(micStarts,0);assert.equal(c.active,false);
+    assert.equal(states.at(-1).needsMicrophone,true);
+  });
+}
+test('microphone setup requests audio only and immediately releases every track',async()=>{
+  let stopped=0;
+  navigator.mediaDevices={getUserMedia:async options=>{
+    assert.deepEqual(options,{audio:true,video:false});
+    return {getTracks:()=>[{stop(){stopped++}},{stop(){stopped++}}]};
+  }};
+  await requestMicrophoneAccess();assert.equal(stopped,2);
+});
+test('permission denial is surfaced, with no fallback or repeated capture request',async()=>{
+  let calls=0;
+  navigator.mediaDevices={getUserMedia:async()=>{calls++;throw new DOMException('denied','NotAllowedError')}};
+  await assert.rejects(requestMicrophoneAccess(),{name:'NotAllowedError'});assert.equal(calls,1);
 });

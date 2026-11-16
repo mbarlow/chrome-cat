@@ -1,5 +1,5 @@
 import { getSettings } from "../shared/constants.js";
-import { inputStatus, localRecognition } from "./input.js";
+import { inputStatus, localRecognition, microphonePermission } from "./input.js";
 import { speak, stopSpeech, interruptSpeech, unlockAudio } from "./speech.js";
 
 // Half-duplex: listen -> submit through the ordinary chat -> speak -> listen.
@@ -7,7 +7,8 @@ import { speak, stopSpeech, interruptSpeech, unlockAudio } from "./speech.js";
 export function createConversation({ onTurn, onState, onTranscript }) {
   let enabled = false, active = false, generation = 0, recognition, timer;
   let processing = null;
-  const state = (text) => onState({ enabled, active, text });
+  let needsMicrophone = false;
+  const state = (text) => onState({ enabled, active, needsMicrophone, text });
 
   function quiet() {
     clearTimeout(timer);
@@ -18,9 +19,10 @@ export function createConversation({ onTurn, onState, onTranscript }) {
     }
   }
 
-  function stop(message = "Conversation stopped.") {
+  function stop(message = "Conversation stopped.", microphoneRequired = false) {
     generation++;
     active = false;
+    needsMicrophone = microphoneRequired;
     quiet();
     stopSpeech();
     chrome.tts?.stop();
@@ -75,12 +77,12 @@ export function createConversation({ onTurn, onState, onTranscript }) {
       recognition.onerror = ({ error }) => {
         if (token !== generation) return;
         const messages = {
-          "not-allowed": "Microphone permission was denied. Allow the microphone for Chrome Cat and try again.",
+          "not-allowed": "Chrome did not allow microphone access. Press Allow microphone to grant permission in a browser tab, then start again.",
           "audio-capture": "No microphone is available. Check your input device.",
           "no-speech": "No speech heard. Press Start conversation to try again.",
           "language-not-supported": "Set up local English voice input in Settings first.",
         };
-        stop(messages[error] || `Voice input stopped: ${error}`);
+        stop(messages[error] || `Voice input stopped: ${error}`, error === "not-allowed");
       };
       recognition.onend = () => {
         if (token !== generation || !active) return;
@@ -109,6 +111,13 @@ export function createConversation({ onTurn, onState, onTranscript }) {
       if (status !== "available") throw new Error(status === "unavailable"
         ? "Local English recognition is unavailable in this Chrome installation. You can still type and hear replies."
         : "Set up local English voice input in Settings, then start again.");
+      const permission = await microphonePermission();
+      if (token !== generation) return;
+      if (permission === "prompt" || permission === "denied") {
+        stop("Microphone access needs setup. Press Allow microphone, then return here and start again.", true);
+        return;
+      }
+      needsMicrophone = false;
       enabled = active = true;
       interruptSpeech();
       listen();

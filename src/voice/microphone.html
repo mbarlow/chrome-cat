@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chrome Cat — microphone access</title>
+  <link rel="stylesheet" href="microphone.css">
+</head>
+<body>
+  <main>
+    <img src="../../icons/icon128.png" width="64" height="64" alt="Chrome Cat">
+    <h1>Let Chrome Cat hear you</h1>
+    <p>Press <strong>Allow microphone</strong>, then choose <strong>Allow</strong> in Chrome’s permission prompt.</p>
+    <p>This check briefly opens and immediately releases the microphone. It does not record, save, or upload audio. Conversation only starts when you return to Chat and press <strong>Start conversation</strong>.</p>
+    <div class="actions">
+      <button id="allowMic">Allow microphone</button>
+      <button id="micSettings" class="secondary">Microphone settings</button>
+    </div>
+    <p id="status" role="status" aria-live="polite"></p>
+    <button id="closeTab" class="secondary" hidden>Close this tab</button>
+  </main>
+  <script type="module" src="microphone.js"></script>
+</body>
+</html>

@@ -18,6 +18,7 @@ import { normalizeUrl } from "../../shared/url.js";
 import { captureRegion, showSource } from "../../capture/region.js";
 import { toMarkdownTable, downloadTable } from "../../actions/table.js";
 import { createConversation } from "../../voice/conversation.js";
+import { openMicrophoneSetup } from "../../voice/input.js";
 
 
 // One chat thread per scope; memory/history/bookmarks each share thread id 0.
@@ -70,6 +71,7 @@ export function createChatView(root, ctx) {
       <div class="actions">
         <button id="voiceStart">Start conversation</button>
         <button id="voiceStop" class="danger">Stop voice</button>
+        <button id="voiceMic" hidden>Allow microphone</button>
       </div>
       <div id="voiceStatus" role="status" aria-live="polite"></div>
       <div id="voiceTranscript" class="muted"></div>
@@ -95,10 +97,11 @@ export function createChatView(root, ctx) {
   const voice = createConversation({
     onTurn: (text) => sendMessage(text),
     onTranscript: (text) => { $("voiceTranscript").textContent = text; },
-    onState: ({ enabled, active, text }) => {
+    onState: ({ enabled, active, needsMicrophone, text }) => {
       $("voiceControls").hidden = !enabled;
       $("voiceStart").disabled = active || view.busy;
       $("voiceStatus").textContent = text;
+      $("voiceMic").hidden = !needsMicrophone;
     }
   });
   const send = () => {
@@ -118,6 +121,7 @@ export function createChatView(root, ctx) {
     void voice.start();
   });
   $("voiceStop").addEventListener("click", () => voice.stop());
+  $("voiceMic").addEventListener("click", () => { voice.stop(); void openMicrophoneSetup(); });
   document.querySelectorAll("#tabs [data-tab]").forEach(tab => {
     tab.addEventListener("click", () => voice.stop());
   });

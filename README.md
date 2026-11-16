@@ -98,8 +98,16 @@ Voice mode is off by default. In **settings → voice conversation**:
 2. Choose **Female** or **Male** and use **Preview** to hear the cat.
 3. Press **Set up** for local English voice input. Chrome may download an
    English speech-recognition pack once; this step needs internet access.
-4. Scan a page or select a memory scope, return to **chat**, and press
-   **Start conversation**. Allow microphone access if Chrome asks.
+4. Press **Allow microphone**. A setup page opens in a normal browser tab;
+   press its **Allow microphone** button and accept Chrome's prompt. The
+   setup check releases the microphone immediately without recording audio.
+5. Scan a page or select a memory scope, return to **chat**, and press
+   **Start conversation**.
+
+Chrome can dismiss microphone permission requests made inside a side panel.
+If Chat reports that access needs setup, use its **Allow microphone** button.
+If access was previously blocked, the setup page links to Chrome's microphone
+settings so you can remove Chrome Cat from the blocked list and retry.
 
 Speak a question and pause. Chrome Cat transcribes it locally, submits it
 through the same chat flow, speaks the answer, and listens for your next

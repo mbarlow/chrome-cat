@@ -9,7 +9,7 @@ const ext = resolve(import.meta.dirname, '..');
 const profile = mkdtempSync('/tmp/chrome-cat-voice-smoke-');
 const ctx = await chromium.launchPersistentContext(profile, {
   headless: false,
-  args: ['--headless=new', '--autoplay-policy=no-user-gesture-required', `--disable-extensions-except=${ext}`, `--load-extension=${ext}`]
+  args: ['--headless=new', '--autoplay-policy=no-user-gesture-required', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', `--disable-extensions-except=${ext}`, `--load-extension=${ext}`]
 });
 try {
   const sw = ctx.serviceWorkers()[0] || await ctx.waitForEvent('serviceworker');
@@ -51,6 +51,36 @@ try {
   console.log('PASS real female/male WASM synthesis, multiple sentences, finite bounded PCM, offline');
 
   await page.click('[data-tab="settings"]');
+  await ctx.addInitScript(()=>{
+    if (!location.pathname.endsWith('/voice/microphone.html')) return;
+    const get=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    window.__micRequests=0;
+    navigator.mediaDevices.getUserMedia=async options=>{
+      window.__micRequests++;
+      window.__micOptions=options;
+      const stream=await get(options);window.__tracks=stream.getTracks();return stream;
+    };
+  });
+  const helperOpened=ctx.waitForEvent('page');
+  await page.click('#microphoneSetup');
+  const helper=await helperOpened;
+  await helper.waitForURL(`${base}/src/voice/microphone.html`);
+  await helper.waitForLoadState();
+  assert.equal(await helper.evaluate(()=>window.__micRequests),0);
+  await helper.click('#allowMic');
+  await helper.waitForFunction(()=>document.querySelector('#status').textContent.includes('Microphone access is allowed'));
+  assert.deepEqual(await helper.evaluate(()=>({options:window.__micOptions,tracks:window.__tracks.map(t=>t.readyState)})),
+    {options:{audio:true,video:false},tracks:['ended']});
+  assert.equal(await page.evaluate(async()=> (await navigator.permissions.query({name:'microphone'})).state),'granted');
+  await helper.screenshot({path:'/tmp/chrome-cat-microphone-setup.png'});
+  await helper.evaluate(()=>{
+    navigator.mediaDevices.getUserMedia=async()=>{throw new DOMException('Permission dismissed','NotAllowedError')};
+  });
+  await helper.click('#allowMic');
+  await helper.waitForFunction(()=>document.querySelector('#status').textContent.includes('blocked or dismissed'));
+  assert.ok(await helper.isHidden('#closeTab'));
+  await helper.close();
+  console.log('PASS microphone setup opens a normal tab, shares permission with panel, releases fake device immediately, and explains denial');
   await page.check('#voiceEnabled');
   await page.selectOption('#voiceName','M2');
   await page.waitForFunction(async()=> (await chrome.storage.local.get('cc.voiceName'))['cc.voiceName']==='M2');
