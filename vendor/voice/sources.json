@@ -1,0 +1,122 @@
+[
+  {
+    "path": "pyodide/pyodide.js",
+    "url": "https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.js",
+    "sha256": "b4cb23a53aba19c221659b9fb40a2f18281d685691dc06647fb0afd0681baf98"
+  },
+  {
+    "path": "pyodide/pyodide.asm.js",
+    "url": "https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.asm.js",
+    "sha256": "6b4c90de5b7172873f04f21884d0e9d2274e305fe32116558fe3e4fbe3618d51"
+  },
+  {
+    "path": "pyodide/pyodide.asm.wasm",
+    "url": "https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.asm.wasm",
+    "sha256": "a50dd1843f805a0b7c45b61037ee0d7b26dfe85efe0e18ef95a34ad24e401f5f"
+  },
+  {
+    "path": "pyodide/python_stdlib.zip",
+    "url": "https://cdn.jsdelivr.net/pyodide/v0.27.7/full/python_stdlib.zip",
+    "sha256": "16611534726e5d8ac2bd8f926410b2dcb8d6f49aa24913463533b457a2115c16"
+  },
+  {
+    "path": "pyodide/pyodide-lock.json",
+    "url": "https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide-lock.json",
+    "sha256": "9c45b916001a750f4102fc287494f3eab215909c7535c626a20db80fd6333e2c"
+  },
+  {
+    "path": "pyodide/numpy-2.0.2-cp312-cp312-pyodide_2024_0_wasm32.whl",
+    "url": "https://cdn.jsdelivr.net/pyodide/v0.27.7/full/numpy-2.0.2-cp312-cp312-pyodide_2024_0_wasm32.whl",
+    "sha256": "ebb61241d962b98b21597d7ce43b67668a6d5bab3acec4fbe958657320d7cd08"
+  },
+  {
+    "path": "pyodide/LICENSE",
+    "url": "https://raw.githubusercontent.com/pyodide/pyodide/0.27.7/LICENSE",
+    "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5"
+  },
+  {
+    "path": "ort/ort.wasm.min.js",
+    "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.wasm.min.js",
+    "sha256": "e66568724f8848e57cc2a56e4bea3a5b86ce3ff81b2da11eac8ed7ab02b27bd4"
+  },
+  {
+    "path": "ort/ort-wasm-simd-threaded.mjs",
+    "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort-wasm-simd-threaded.mjs",
+    "sha256": "745eb7c0ce6f18a6aa521971b2877babc7ffb27eecb58ab3bc6e5ef4692672e8"
+  },
+  {
+    "path": "ort/ort-wasm-simd-threaded.wasm",
+    "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort-wasm-simd-threaded.wasm",
+    "sha256": "207d02be4591c156b0a98f024f3d58005b5b04c92274d759fb390338c63559ea"
+  },
+  {
+    "path": "ort/LICENSE",
+    "url": "https://raw.githubusercontent.com/microsoft/onnxruntime/v1.20.1/LICENSE",
+    "sha256": "2f07c72751aed99790b8a4869cf2311df85a860b22ded05fa22803587a48922c"
+  },
+  {
+    "path": "ort/ThirdPartyNotices.txt",
+    "url": "https://raw.githubusercontent.com/microsoft/onnxruntime/v1.20.1/ThirdPartyNotices.txt",
+    "sha256": "cf7342f7ba482ef715ae58f5f497a8d3564fa255164175aea324cd293c5701a0"
+  },
+  {
+    "path": "config.json",
+    "url": "https://huggingface.co/n4ze3m/tiny-voca/resolve/e5f9b11651a4db525fb207a56a91e4df2d1dd387/config.json",
+    "sha256": "27bcbf322fc428581f0e959be1c141dd7751c61f4fed5eded326e779b215f69c"
+  },
+  {
+    "path": "onnx/model.onnx",
+    "url": "https://huggingface.co/n4ze3m/tiny-voca/resolve/e5f9b11651a4db525fb207a56a91e4df2d1dd387/onnx/model.onnx",
+    "sha256": "fe6d918791a15b82e37465981d7f27a070e46b46635e5a3482fc8dff87a1ae46"
+  },
+  {
+    "path": "phonemizer/lexicon.tsv",
+    "url": "https://huggingface.co/n4ze3m/tiny-voca/resolve/e5f9b11651a4db525fb207a56a91e4df2d1dd387/phonemizer/lexicon.tsv",
+    "sha256": "3fc930345c6b3cabc533981c4b212fa309eec83913fcdbd42919338270d64b06"
+  },
+  {
+    "path": "phonemizer/align.json",
+    "url": "https://huggingface.co/n4ze3m/tiny-voca/resolve/e5f9b11651a4db525fb207a56a91e4df2d1dd387/phonemizer/align.json",
+    "sha256": "864763dbd558a864950266b2c30627f1cad203e75062ee842ee63c653e823b75"
+  },
+  {
+    "path": "phonemizer/g2p.json",
+    "url": "https://huggingface.co/n4ze3m/tiny-voca/resolve/e5f9b11651a4db525fb207a56a91e4df2d1dd387/phonemizer/g2p.json",
+    "sha256": "c518fd839ea0109c0b2b4f778c17506bf0d7653557b8b8c97a4c8dd9883d4432"
+  },
+  {
+    "path": "phonemizer/g2p.npz",
+    "url": "https://huggingface.co/n4ze3m/tiny-voca/resolve/e5f9b11651a4db525fb207a56a91e4df2d1dd387/phonemizer/g2p.npz",
+    "sha256": "eb3fd519ff00e72d850928d2fccb968adc36134bca2f3bda09de7e794c2ed01b"
+  },
+  {
+    "path": "phonemizer/homographs.json",
+    "url": "https://huggingface.co/n4ze3m/tiny-voca/resolve/e5f9b11651a4db525fb207a56a91e4df2d1dd387/phonemizer/homographs.json",
+    "sha256": "9c3a96fcdf79fa27d1b3686dc6a507c37e4f754966928608ee9ddb617ba39192"
+  },
+  {
+    "path": "phonemizer/LICENSE.cmudict",
+    "url": "https://huggingface.co/n4ze3m/tiny-voca/resolve/e5f9b11651a4db525fb207a56a91e4df2d1dd387/phonemizer/LICENSE.cmudict",
+    "sha256": "bd4ce8e44170a5f9f481310ca85c51de3c4f851a65e679b40e603b143bd3542a"
+  },
+  {
+    "path": "phonemizer/LICENSE.homograph-data",
+    "url": "https://huggingface.co/n4ze3m/tiny-voca/resolve/e5f9b11651a4db525fb207a56a91e4df2d1dd387/phonemizer/LICENSE.homograph-data",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+  },
+  {
+    "path": "dizione.zip",
+    "url": "https://codeload.github.com/n4ze3m/dizione/zip/8cd889e4de7be6bd1dd2e6891344a0729fa14dd4",
+    "sha256": "f7773c30fef90ed3c2f1daa973868b2b26ab4efd82c08340d0e1815a98fca09a"
+  },
+  {
+    "path": "LICENSE-tiny-voca",
+    "url": "https://raw.githubusercontent.com/n4ze3m/tiny-voca/62e2adef158bc997042cc6234f541f1e0e4cd55d/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+  },
+  {
+    "path": "pyodide/LICENSE-python",
+    "url": "https://raw.githubusercontent.com/python/cpython/v3.12.7/LICENSE",
+    "sha256": "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf"
+  }
+]

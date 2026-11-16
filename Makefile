@@ -20,7 +20,7 @@ VENDOR_FILES := \
 	lang/eng.traineddata.gz \
 	LICENSE-APACHE-2.0.txt
 
-.PHONY: help install icons vendor vendor-lock vendor-verify smoke e2e repo package clean
+.PHONY: help install icons vendor vendor-lock vendor-verify vendor-voice voice-verify voice-test smoke e2e repo package clean
 
 help:
 	@echo "chrome-cat v$(VERSION) — commands"
@@ -30,6 +30,8 @@ help:
 	@echo "  make vendor    - fetch pinned Tesseract.js files into vendor/tesseract/"
 	@echo "  make vendor-verify - check vendor/tesseract against SHA256SUMS"
 	@echo "  make vendor-lock   - regenerate SHA256SUMS from what's on disk"
+	@echo "  make vendor-voice  - fetch pinned local voice assets"
+	@echo "  make voice-test    - voice unit tests + real offline WASM extension test"
 	@echo "  make smoke     - headless boot + OCR + IDB smoke test (needs global playwright)"
 	@echo "  make e2e       - real Chrome + Gemini Nano: scan a fixture, chat through the panel"
 	@echo "  make repo      - git init + create private GitHub repo mbarlow/chrome-cat"
@@ -84,10 +86,20 @@ vendor-lock:
 	@echo "Locked $(words $(VENDOR_FILES)) files into vendor/tesseract/SHA256SUMS."
 
 # Standalone integrity check. Fails loud, no network.
-vendor-verify:
+vendor-verify: voice-verify
 	@test -f vendor/tesseract/SHA256SUMS || { echo "No vendor/tesseract/SHA256SUMS — run 'make vendor'."; exit 1; }
 	@cd vendor/tesseract && sha256sum -c --quiet SHA256SUMS
 	@echo "vendor/tesseract: $(words $(VENDOR_FILES)) files match SHA256SUMS."
+
+vendor-voice:
+	@python3 tools/vendor-voice.py --fetch
+
+voice-verify:
+	@python3 tools/vendor-voice.py
+
+voice-test: voice-verify
+	@node tools/voice.test.mjs
+	@node tools/voice-smoke.mjs
 
 smoke: vendor-verify
 	@node tools/smoke.mjs

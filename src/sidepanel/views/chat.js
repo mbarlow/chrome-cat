@@ -17,6 +17,7 @@ import { renderMarkdown } from "../../shared/markdown.js";
 import { normalizeUrl } from "../../shared/url.js";
 import { captureRegion, showSource } from "../../capture/region.js";
 import { toMarkdownTable, downloadTable } from "../../actions/table.js";
+import { createConversation } from "../../voice/conversation.js";
 
 
 // One chat thread per scope; memory/history/bookmarks each share thread id 0.
@@ -65,6 +66,14 @@ export function createChatView(root, ctx) {
       <span id="attachText"></span>
       <button class="mini ghost" id="attachClear" title="Stop asking about this region">✕</button>
     </div>
+    <div class="voice-controls" id="voiceControls" hidden>
+      <div class="actions">
+        <button id="voiceStart">Start conversation</button>
+        <button id="voiceStop" class="danger">Stop voice</button>
+      </div>
+      <div id="voiceStatus" role="status" aria-live="polite"></div>
+      <div id="voiceTranscript" class="muted"></div>
+    </div>
     <div class="composer">
       <textarea id="input" placeholder="Ask about this page… (/follow crawls links · 'open the pricing page' navigates + scans)"></textarea>
       <button class="primary" id="sendBtn">▶</button>
@@ -83,6 +92,36 @@ export function createChatView(root, ctx) {
     region: null     // { blob, w, h, notes, url, preview } while a region is attached
   };
 
+  const voice = createConversation({
+    onTurn: (text) => sendMessage(text),
+    onTranscript: (text) => { $("voiceTranscript").textContent = text; },
+    onState: ({ enabled, active, text }) => {
+      $("voiceControls").hidden = !enabled;
+      $("voiceStart").disabled = active || view.busy;
+      $("voiceStatus").textContent = text;
+    }
+  });
+  const send = () => {
+    const text = $("input").value.trim();
+    if (/^\/?stop(?: voice| conversation)?[.!]?$/i.test(text)) {
+      voice.stop();
+      chrome.tts.stop();
+      $("input").value = "";
+      return;
+    }
+    if (view.busy || !text) return;
+    return voice.turn(() => sendMessage());
+  };
+  $("voiceStart").addEventListener("click", () => {
+    if (!ctx.getScope()) { ctx.toast("Scan a page or select a memory scope first."); return; }
+    if ($("input").value.trim()) { ctx.toast("Send or clear your draft before starting a conversation."); return; }
+    void voice.start();
+  });
+  $("voiceStop").addEventListener("click", () => voice.stop());
+  document.querySelectorAll("#tabs [data-tab]").forEach(tab => {
+    tab.addEventListener("click", () => voice.stop());
+  });
+
   // ---- rendering ----
 
   function setBusy(b) {
@@ -92,6 +131,7 @@ export function createChatView(root, ctx) {
     $("followBtn").disabled = b || !view.capture || view.capture.status !== "ready" || !view.capture.links?.length;
     $("dlChatBtn").disabled = b || !ctx.getScope();
     $("sendBtn").disabled = b;
+    $("voiceStart").disabled = b || voice.active;
   }
 
   function progress(label, done, total) {
@@ -259,6 +299,7 @@ export function createChatView(root, ctx) {
   // ---- scope loading ----
 
   async function loadScope() {
+    voice.stop("Scope changed. Start a conversation when ready.");
     const scope = ctx.getScope();
     view.capture = view.series = null;
     view.captures = [];
@@ -296,6 +337,7 @@ export function createChatView(root, ctx) {
   // ---- scan ----
 
   async function scan() {
+    voice.stop();
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab || !/^https?:/.test(tab.url || "")) {
       ctx.toast("Can't scan this page (needs http/https).");
@@ -385,11 +427,17 @@ export function createChatView(root, ctx) {
 
   // ---- send ----
 
-  async function send() {
+  async function sendMessage(spokenQuestion) {
     const input = $("input");
-    const question = input.value.trim();
+    const question = (spokenQuestion ?? input.value).trim();
     if (!question || view.busy) return;
-    input.value = "";
+    if (spokenQuestion === undefined) input.value = "";
+
+    if (/^\/?stop(?: voice| conversation)?[.!]?$/i.test(question)) {
+      voice.stop();
+      chrome.tts.stop();
+      return;
+    }
 
     if (/^\/follow\b/i.test(question) || /^follow (the )?links\b/i.test(question)) {
       await followLinks();
@@ -397,30 +445,26 @@ export function createChatView(root, ctx) {
     }
 
     if (BOOKMARK_INTENT.test(question) && !/\?\s*$/.test(question)) {
-      await bookmarkCurrent(question);
-      return;
+      return bookmarkCurrent(question);
     }
 
     const sendCmd = parseSendCommand(question);
     if (sendCmd) {
-      await handleSend(question, sendCmd);
-      return;
+      return handleSend(question, sendCmd);
     }
 
     if (NAV_INTENT.test(question)) {
-      await navigate(question);
-      return;
+      return navigate(question);
     }
 
     if (view.region) {
-      await askRegion(question);
-      return;
+      return askRegion(question);
     }
 
     const scope = ctx.getScope();
     if (!scope) {
       ctx.toast("Scan a page first.");
-      return;
+      return "Scan a page first.";
     }
     const scopeId = scopeIdOf(scope);
     msgEl("user", question);
@@ -435,7 +479,8 @@ export function createChatView(root, ctx) {
       // a whole series of images won't fit the model's quota).
       if (route === "vision" && scope.type === "capture") {
         bubble.dataset.route = route;
-        if (await askVision(question, scope, bubble)) return;
+        const answer = await askVision(question, scope, bubble);
+        if (answer) return answer;
       }
       if (route === "vision") route = "text";
       bubble.dataset.route = route;
@@ -444,7 +489,7 @@ export function createChatView(root, ctx) {
         renderTable(bubble, table);
         if (sources.length) addSources(bubble, sources);
         await appendMessage(scope.type, scopeId, { role: "assistant", content: toMarkdownTable(table), table, sources });
-        return;
+        return toMarkdownTable(table);
       }
       const { answer, trimmed, sources } = await ctx.session.ask(question, {
         route,
@@ -457,9 +502,11 @@ export function createChatView(root, ctx) {
       if (sources.length) addSources(bubble, sources);
       if (trimmed) msgEl("note", "context trimmed — session rebuilt");
       await appendMessage(scope.type, scopeId, { role: "assistant", content: answer, sources });
+      return answer;
     } catch (err) {
       bubble.textContent = `⚠ ${err?.message || err}`;
       bubble.classList.add("note");
+      return `I couldn't answer: ${err?.message || err}`;
     } finally {
       renderUsage();
       setBusy(false);
@@ -483,6 +530,7 @@ export function createChatView(root, ctx) {
       const note = await smartBookmark(view.capture);
       msgEl("note", note);
       await appendMessage("capture", scope.captureId, { role: "assistant", content: `[bookmark] ${note}` });
+      return note;
     } catch (err) {
       msgEl("note", `bookmark failed: ${err?.message || err}`);
     } finally {
@@ -502,7 +550,7 @@ export function createChatView(root, ctx) {
     }
     const scopeId = scopeIdOf(scope);
     await appendMessage(scope.type, scopeId, { role: "user", content: question });
-    await performSend(cmd, scope, scopeId);
+    return performSend(cmd, scope, scopeId);
   }
 
   // Dispatch only — caller has already recorded the user message.
@@ -519,6 +567,7 @@ export function createChatView(root, ctx) {
       const note = await dispatchSend(cmd, { type: scope.type, id: scopeId }, captures, webhooks);
       msgEl("note", note);
       await appendMessage(scope.type, scopeId, { role: "assistant", content: `[${cmd.sink || "send"}] ${note}` });
+      return cmd.sink === "tts" ? null : note;
     } catch (err) {
       msgEl("note", `send failed: ${err?.message || err}`);
     } finally {
@@ -627,10 +676,10 @@ export function createChatView(root, ctx) {
     }
   }
 
-  // Returns true when the vision path answered; false = fall through to text.
+  // Returns the answer when vision succeeds; null = fall through to text.
   async function askVision(question, scope, bubble) {
     const tiles = await getTiles(scope.captureId);
-    if (!tiles.length) return false;
+    if (!tiles.length) return null;
     bubble.textContent = "👁 looking at the page…";
     try {
       const used = tiles.slice(0, MAX_VISION_TILES);
@@ -650,11 +699,11 @@ export function createChatView(root, ctx) {
       }
       await appendMessage(scope.type, scope.captureId, { role: "assistant", content: answer });
       $("msgs").scrollTop = $("msgs").scrollHeight;
-      return true;
+      return answer;
     } catch (err) {
       msgEl("note", `visual look failed (${err?.message || err}) — answering from text`);
       bubble.textContent = "…";
-      return false;
+      return null;
     }
   }
 
@@ -718,6 +767,7 @@ export function createChatView(root, ctx) {
       }
       setAnswer(bubble, answer);
       await save({ role: "assistant", content: answer });
+      return answer;
     } catch (err) {
       bubble.textContent = `⚠ ${err?.message || err}`;
       bubble.classList.add("note");

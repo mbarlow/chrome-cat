@@ -83,6 +83,50 @@ The pixel cat in the header shows what's happening — idle, scanning,
 replying, working. It lives in `src/mascot/mascot.json`; edit the frames,
 get a new cat.
 
+## Voice conversation
+
+Voice mode is off by default. In **settings → voice conversation**:
+
+1. Enable **voice mode and spoken replies**.
+2. Choose **Female** or **Male** and use **Preview** to hear the cat.
+3. Press **Set up** for local English voice input. Chrome may download an
+   English speech-recognition pack once; this step needs internet access.
+4. Scan a page or select a memory scope, return to **chat**, and press
+   **Start conversation**. Allow microphone access if Chrome asks.
+
+Speak a question and pause. Chrome Cat transcribes it locally, submits it
+through the same chat flow, speaks the answer, and listens for your next
+question. The transcript and replies remain in the normal chat history.
+The microphone is stopped during thinking and playback to avoid feedback.
+
+**Stop voice** stops listening and playback, including a voice still loading.
+It also prevents a pending answer from being spoken; the text answer may
+still finish. Switching tabs/scopes or closing the panel stops conversation.
+After silence or a recognition error, press Start conversation to resume.
+Typing `stop` also stops voice; use the Stop voice button to interrupt speech
+while the microphone is paused.
+
+Typing remains available. With voice mode on, typed questions also get spoken
+replies; turn it off in settings for ordinary text chat. The existing
+`read it to me` command uses the selected cat voice when voice mode is on and
+the original Chrome TTS path when it is off.
+
+Speech synthesis uses [tiny-voca](https://github.com/n4ze3m/tiny-voca), bundled
+with ONNX Runtime Web, Pyodide, and dizione (about 53 MB of additional assets).
+No text or audio is uploaded for voice mode. Input requires Chrome's
+**on-device** Web Speech API and English language pack. If that feature is
+unavailable in your Chrome installation, typed chat with spoken replies
+still works; there is no cloud-recognition fallback. Both voices are English
+only. Names and unusual spellings may be mispronounced.
+
+Voice assets are included in the branch/package. To restore missing files,
+run `make vendor-voice`. Downloads are pinned and checked against
+`vendor/voice/sources.json`. `make voice-test` checks cancellation and
+turn-taking and runs both real voices offline inside the extension's CSP;
+its microphone transcript and chat-model response are simulated. Actual
+microphone permission, input-device quality, and recognition accuracy need a
+manual check on your machine.
+
 ## Webhook receiver in 60 seconds
 
 ```
@@ -101,8 +145,10 @@ Add `vault → http://localhost:8787/inbox` under settings → webhooks, then
   `tools/e2e/` and chats through the panel. Failures are tagged TOOLING or
   MODEL; `E2E_RETRIES` (default 1) bounds model retries.
 - Everything lives in local IndexedDB — settings shows usage and clears it.
-- No network at runtime. `make vendor` is the only thing that touches a CDN,
-  at build time, pinned.
+- OCR and voice synthesis use packaged assets, with no runtime CDN requests.
+  Chrome's built-in chat model and local speech-recognition pack may need an
+  initial download. `make vendor` and `make vendor-voice` fetch pinned assets
+  at build time.
 - Pinned isn't trusted. Every vendored byte is checksummed in
   `vendor/tesseract/SHA256SUMS`; `make vendor`, `make smoke` and
   `make package` all verify before they proceed. If upstream changes under
@@ -117,3 +163,7 @@ chrome-cat is [MIT](LICENSE).
 attribution list, the Apache text, and the upstream license banners live in
 [`vendor/tesseract/NOTICE`](vendor/tesseract/NOTICE). Ship the zip, ship
 those files with it — `make package` already does.
+
+Voice dependencies and their license notices are listed in
+[`vendor/voice/NOTICE`](vendor/voice/NOTICE). The tiny-voca code and weights are
+Apache-2.0; the other bundled components retain their upstream licenses.

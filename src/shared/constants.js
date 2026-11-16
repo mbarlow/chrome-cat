@@ -36,7 +36,9 @@ export const STORAGE_KEYS = {
   maxLinks: "cc.maxLinks",
   sameDomainOnly: "cc.sameDomainOnly",
   systemPrompt: "cc.systemPrompt",
-  webhooks: "cc.webhooks" // [{ name, url }]
+  webhooks: "cc.webhooks", // [{ name, url }]
+  voiceEnabled: "cc.voiceEnabled",
+  voiceName: "cc.voiceName"
 };
 
 export async function getSettings() {
@@ -45,7 +47,9 @@ export async function getSettings() {
     maxLinks: raw[STORAGE_KEYS.maxLinks] ?? DEFAULT_MAX_LINKS,
     sameDomainOnly: raw[STORAGE_KEYS.sameDomainOnly] ?? true,
     systemPrompt: raw[STORAGE_KEYS.systemPrompt] ?? null, // null -> DEFAULT_SYSTEM_BASE
-    webhooks: raw[STORAGE_KEYS.webhooks] ?? []
+    webhooks: raw[STORAGE_KEYS.webhooks] ?? [],
+    voiceEnabled: raw[STORAGE_KEYS.voiceEnabled] === true,
+    voiceName: raw[STORAGE_KEYS.voiceName] === "M2" ? "M2" : "F2"
   };
 }
 
@@ -56,6 +60,8 @@ export async function saveSettings(patch) {
   if (patch.sameDomainOnly !== undefined) out[STORAGE_KEYS.sameDomainOnly] = patch.sameDomainOnly;
   if (patch.systemPrompt !== undefined) out[STORAGE_KEYS.systemPrompt] = patch.systemPrompt;
   if (patch.webhooks !== undefined) out[STORAGE_KEYS.webhooks] = patch.webhooks;
+  if (patch.voiceEnabled !== undefined) out[STORAGE_KEYS.voiceEnabled] = patch.voiceEnabled === true;
+  if (patch.voiceName !== undefined) out[STORAGE_KEYS.voiceName] = patch.voiceName === "M2" ? "M2" : "F2";
   await chrome.storage.local.set(out);
 }
 
