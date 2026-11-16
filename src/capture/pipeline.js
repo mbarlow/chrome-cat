@@ -4,7 +4,8 @@
 
 import { scanPage } from "./scanner.js";
 import { stitchAndSlice } from "./stitcher.js";
-import { ocrTile } from "../ocr/tesseract-engine.js";
+import { recognizeCapture } from "../ocr/capture-ocr.js";
+import { getSettings } from "../shared/constants.js";
 import { summarizeCapture } from "../ai/summarizer.js";
 import { refreshDomain } from "../db/memory.js";
 import * as captures from "../db/captures.js";
@@ -34,11 +35,16 @@ async function seedChat(capture) {
   });
 }
 
-export async function capturePage(tabId, windowId, { seriesId = null, onPhase } = {}) {
+export async function capturePage(tabId, windowId, { seriesId = null, onPhase, ocrMode, signal } = {}) {
+  const started = performance.now();
+  const timings = {};
+  if (!ocrMode) ocrMode = (await getSettings()).ocrMode;
+  let stage = performance.now();
   const { metrics, dom, frames } = await scanPage(tabId, windowId, {
-    onProgress: (d, t) => onPhase?.("scan", d, t)
+    signal, onProgress: (d, t) => onPhase?.("scan", d, t)
   });
 
+  timings.scanMs = Math.round(performance.now() - stage);
   const capture = await captures.createCapture({
     url: metrics.url,
     title: metrics.title,
@@ -47,51 +53,48 @@ export async function capturePage(tabId, windowId, { seriesId = null, onPhase } 
   });
 
   try {
+    signal?.throwIfAborted();
+    stage = performance.now();
+    onPhase?.("stitch", 0, 1);
     const { tiles } = await stitchAndSlice(frames, metrics, {
       onProgress: (d, t) => onPhase?.("stitch", d, t)
     });
 
-    const tileRows = [];
+    timings.stitchMs = Math.round(performance.now() - stage);
+    stage = performance.now();
     for (const t of tiles) {
-      tileRows.push(await captures.addTile({
-        captureId: capture.id, seq: t.seq, blob: t.blob, w: t.w, h: t.h,
+      await captures.addTile({
+        captureId: capture.id, seq: t.seq, blob: t.blob, w: t.w, h: t.h, contentH: t.contentH,
         ocrText: "", ocrConfidence: 0
-      }));
+      });
     }
-    await captures.updateCapture(capture.id, {
+    let updated = await captures.updateCapture(capture.id, {
       status: "ocr",
       tileCount: tiles.length,
       domText: dom.text,
+      mainText: dom.mainText,
+      domMetadata: dom.metadata || [],
+      visualRegions: dom.visualRegions || [],
+      scanTruncated: Math.max(metrics.scrollHeight, dom.scrollHeight || 0) > frames.at(-1).y + metrics.viewportH,
       domChunks: [...chunkText(dom.text), describeImages(dom.images)].filter(Boolean),
       links: dom.links,
       images: dom.images || []
     });
 
-    // Sequential OCR, one tile at a time.
-    const ocrParts = [];
-    for (let i = 0; i < tileRows.length; i++) {
-      const row = tileRows[i];
-      try {
-        const { text, confidence } = await ocrTile(row.blob, (frac) =>
-          onPhase?.("ocr", i + frac, tileRows.length));
-        row.ocrText = text;
-        row.ocrConfidence = confidence;
-        await captures.updateTile(row);
-        ocrParts.push(text);
-      } catch (err) {
-        ocrParts.push(`[OCR failed: ${err?.message || err}]`);
-      }
-      onPhase?.("ocr", i + 1, tileRows.length);
-    }
-    const ocrText = ocrParts
-      .map((p, i) => (i === 0 ? p : `\n\n--- page ${i + 1} ---\n\n${p}`))
-      .join("");
-
-    let updated = await captures.updateCapture(capture.id, { ocrText, status: "summarizing" });
-
+    timings.persistMs = Math.round(performance.now() - stage);
+    stage = performance.now();
+    updated = await recognizeCapture(updated, { mode: ocrMode, signal,
+      onProgress: (d, t) => onPhase?.("ocr", d, t) });
+    timings.ocrMs = Math.round(performance.now() - stage);
+    signal?.throwIfAborted();
+    stage = performance.now();
+    updated = await captures.updateCapture(capture.id, { status: "summarizing" });
     onPhase?.("summary", 0, 1);
     const summary = await summarizeCapture(updated); // "" when Nano unavailable
-    updated = await captures.updateCapture(capture.id, { summary, status: "ready" });
+    timings.summaryMs = Math.round(performance.now() - stage);
+    signal?.throwIfAborted();
+    timings.totalMs = Math.round(performance.now() - started);
+    updated = await captures.updateCapture(capture.id, { summary, timings, status: "ready" });
     onPhase?.("summary", 1, 1);
 
     await seedChat(updated);
@@ -99,7 +102,7 @@ export async function capturePage(tabId, windowId, { seriesId = null, onPhase } 
     return updated;
   } catch (err) {
     await captures.updateCapture(capture.id, {
-      status: "error", error: String(err?.message || err)
+      status: err?.name === "AbortError" ? "cancelled" : "error", error: String(err?.message || err)
     });
     throw err;
   }

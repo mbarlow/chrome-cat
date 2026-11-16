@@ -62,38 +62,80 @@ export function pageRestore() {
   return true;
 }
 
+// Capture visual bounds at the same scroll position as the screenshot. This
+// avoids stale coordinates after lazy loading or restoring the user's scroll.
+export function pageVisualState() {
+  const regions = [];
+  for (const el of document.querySelectorAll("img,canvas,svg,video,iframe")) {
+    if (getComputedStyle(el).visibility === "hidden") continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < 80 || r.height < 40) continue;
+    const left = Math.max(0, r.left), top = Math.max(0, r.top);
+    const right = Math.min(innerWidth, r.right), bottom = Math.min(innerHeight, r.bottom);
+    if (right > left && bottom > top) regions.push({
+      x: left, y: top + scrollY, w: right - left, h: bottom - top
+    });
+  }
+  return { y: scrollY, w: innerWidth, h: innerHeight, regions };
+}
+
 // DOM ground truth: full text, deduped http(s) links, and what the HTML says
 // about its images (alt, title, aria-label, figcaption, descriptive filename).
 export function pageExtractDom() {
-  const seen = new Set();
   const links = [];
+  const byUrl = new Map();
+  const metadata = [];
   const here = location.href.split("#")[0];
-  for (const a of document.querySelectorAll("a[href]")) {
-    const href = a.href;
-    if (!/^https?:\/\//.test(href)) continue;
-    const clean = href.split("#")[0];
-    if (!clean || clean === here || seen.has(clean)) continue;
-    seen.add(clean);
-    links.push({ href: clean, text: (a.innerText || "").trim().slice(0, 120) });
+  const cleanText = (value) => String(value || "").replace(/\s+/g, " ").trim();
+  let heading = "Page";
+  // Attribute labels are evidence too: avatar usernames often never appear
+  // in innerText. Keep their section so retrieval can find "contributors".
+  for (const el of document.querySelectorAll("h1,h2,h3,h4,a[href],time[datetime],relative-time[datetime]")) {
+    if (!el.getClientRects().length) continue;
+    if (/^H[1-4]$/.test(el.tagName)) { heading = cleanText(el.innerText).slice(0, 120); continue; }
+    if (el.matches("a[href]")) {
+      if (!/^https?:\/\//.test(el.href)) continue;
+      const href = el.href.split("#")[0];
+      if (!href || href === here) continue;
+      const sectionHeading = el.closest("article, section, aside")?.querySelector("h1,h2,h3,h4");
+      // News-card images can precede their own heading. Otherwise use the
+      // current heading, not the first heading of a multi-section sidebar.
+      const upcomingHeading = sectionHeading && (el.compareDocumentPosition(sectionHeading) & Node.DOCUMENT_POSITION_FOLLOWING);
+      const context = cleanText(upcomingHeading ? sectionHeading.innerText : heading).slice(0, 120);
+      const visible = cleanText(el.innerText);
+      const labels = [el.getAttribute("aria-label"), el.title,
+        ...[...el.querySelectorAll("img[alt]")].map(img => img.alt)].map(cleanText).filter(Boolean);
+      const text = [...new Set([visible, ...labels].filter(Boolean))].join(" — ").slice(0, 240);
+      const prior = byUrl.get(href);
+      if (!prior) { const link = { href, text, context }; links.push(link); byUrl.set(href, link); }
+      else if (!prior.text && text) { prior.text = text; prior.context = context; }
+      if (labels.length && metadata.length < 400) metadata.push(`${context}: ${text} (${href})`);
+    } else if (metadata.length < 400) {
+      const context = cleanText(el.closest("p,li,tr")?.innerText || heading).slice(0, 180);
+      metadata.push(`${heading}: ${context} — datetime: ${el.getAttribute("datetime")}`);
+    }
   }
   const images = [];
-  for (const img of document.querySelectorAll("img")) {
-    const r = img.getBoundingClientRect();
-    if (r.width < 48 || r.height < 48) continue;
+  for (const el of document.querySelectorAll("img,canvas,svg,video,iframe")) {
+    const r = el.getBoundingClientRect();
+    if (el.tagName !== "IMG" || r.width < 48 || r.height < 48 || images.length >= 40) continue;
     let file = "";
     try {
-      const u = new URL(img.currentSrc || img.src);
+      const u = new URL(el.currentSrc || el.src);
       const name = decodeURIComponent(u.pathname.split("/").pop() || "").replace(/\.[a-z0-9]+$/i, "");
       if (/^https?:$/.test(u.protocol) && /[a-z]{3,}[-_ ][a-z]{3,}/i.test(name)) file = name.replace(/[-_]+/g, " ");
     } catch { /* unparseable src */ }
-    const parts = [img.alt, img.title, img.getAttribute("aria-label"),
-      img.closest("figure")?.querySelector("figcaption")?.innerText, file]
-      .map((s) => (s || "").trim()).filter(Boolean);
+    const parts = [el.alt, el.title, el.getAttribute("aria-label"),
+      el.closest("figure")?.querySelector("figcaption")?.innerText, file]
+      .map(cleanText).filter(Boolean);
     const desc = [...new Set(parts)].join(" — ").slice(0, 200);
     if (desc && !images.includes(desc)) images.push(desc);
-    if (images.length >= 20) break;
   }
-  return { text: document.body?.innerText || "", links, images };
+  // Main content is useful for summaries; full text remains available for
+  // questions about navigation, sidebar contributors, and footers.
+  const main = document.querySelector("main, [role=main], article");
+  return { scrollHeight: document.documentElement.scrollHeight, text: document.body?.innerText || "", mainText: main?.innerText || "",
+    links, images, metadata: [...new Set(metadata)] };
 }
 
 // Scroll to and highlight a passage of page text. Matching ignores case and

@@ -1,0 +1,424 @@
+{
+  "fixture_baseline": {
+    "url": "http://127.0.0.1:40209/",
+    "mode": "full",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "panelVisibility": "visible",
+    "model": "disabled for capture benchmark",
+    "runs": [
+      {
+        "elapsedMs": 8396,
+        "timings": null,
+        "tiles": 4,
+        "domChars": 6750,
+        "ocrChars": 6835,
+        "noticeFound": true,
+        "status": "ready",
+        "title": "Fern Daily \u2014 scan benchmark",
+        "errors": [],
+        "metadataCount": 0,
+        "phaseEndMs": {
+          "scan": 4429,
+          "stitch": 4541,
+          "ocr": 8392,
+          "summary": 8394
+        }
+      },
+      {
+        "elapsedMs": 8016,
+        "timings": null,
+        "tiles": 4,
+        "domChars": 6750,
+        "ocrChars": 6835,
+        "noticeFound": true,
+        "status": "ready",
+        "title": "Fern Daily \u2014 scan benchmark",
+        "errors": [],
+        "metadataCount": 0,
+        "phaseEndMs": {
+          "scan": 4429,
+          "stitch": 4535,
+          "ocr": 8013,
+          "summary": 8015
+        }
+      },
+      {
+        "elapsedMs": 8030,
+        "timings": null,
+        "tiles": 4,
+        "domChars": 6750,
+        "ocrChars": 6835,
+        "noticeFound": true,
+        "status": "ready",
+        "title": "Fern Daily \u2014 scan benchmark",
+        "errors": [],
+        "metadataCount": 0,
+        "phaseEndMs": {
+          "scan": 4425,
+          "stitch": 4547,
+          "ocr": 8027,
+          "summary": 8028
+        }
+      }
+    ],
+    "medianMs": 8030
+  },
+  "fixture_auto": {
+    "url": "http://127.0.0.1:43583/",
+    "mode": "auto",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "panelVisibility": "visible",
+    "model": "disabled for capture benchmark",
+    "runs": [
+      {
+        "elapsedMs": 3945,
+        "timings": {
+          "scanMs": 3523,
+          "stitchMs": 115,
+          "persistMs": 4,
+          "ocrMs": 300,
+          "summaryMs": 1,
+          "totalMs": 3943
+        },
+        "tiles": 4,
+        "domChars": 6750,
+        "ocrChars": 56,
+        "ocrMode": "auto",
+        "ocrJobs": 1,
+        "ocrAreas": 1,
+        "ocrStatus": "complete",
+        "noticeFound": true,
+        "status": "ready",
+        "title": "Fern Daily \u2014 scan benchmark",
+        "errors": [],
+        "metadataCount": 5,
+        "phaseEndMs": {
+          "scan": 3519,
+          "stitch": 3638,
+          "ocr": 3938,
+          "summary": 3943
+        }
+      },
+      {
+        "elapsedMs": 3688,
+        "timings": {
+          "scanMs": 3523,
+          "stitchMs": 119,
+          "persistMs": 3,
+          "ocrMs": 41,
+          "summaryMs": 1,
+          "totalMs": 3686
+        },
+        "tiles": 4,
+        "domChars": 6750,
+        "ocrChars": 56,
+        "ocrMode": "auto",
+        "ocrJobs": 1,
+        "ocrAreas": 1,
+        "ocrStatus": "complete",
+        "noticeFound": true,
+        "status": "ready",
+        "title": "Fern Daily \u2014 scan benchmark",
+        "errors": [],
+        "metadataCount": 5,
+        "phaseEndMs": {
+          "scan": 3518,
+          "stitch": 3642,
+          "ocr": 3682,
+          "summary": 3687
+        }
+      },
+      {
+        "elapsedMs": 3716,
+        "timings": {
+          "scanMs": 3556,
+          "stitchMs": 113,
+          "persistMs": 3,
+          "ocrMs": 41,
+          "summaryMs": 1,
+          "totalMs": 3714
+        },
+        "tiles": 4,
+        "domChars": 6750,
+        "ocrChars": 56,
+        "ocrMode": "auto",
+        "ocrJobs": 1,
+        "ocrAreas": 1,
+        "ocrStatus": "complete",
+        "noticeFound": true,
+        "status": "ready",
+        "title": "Fern Daily \u2014 scan benchmark",
+        "errors": [],
+        "metadataCount": 5,
+        "phaseEndMs": {
+          "scan": 3552,
+          "stitch": 3670,
+          "ocr": 3710,
+          "summary": 3714
+        }
+      }
+    ],
+    "medianMs": 3716
+  },
+  "fixture_full": {
+    "url": "http://127.0.0.1:33469/",
+    "mode": "full",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "panelVisibility": "visible",
+    "model": "disabled for capture benchmark",
+    "runs": [
+      {
+        "elapsedMs": 8806,
+        "timings": {
+          "scanMs": 3524,
+          "stitchMs": 1424,
+          "persistMs": 3,
+          "ocrMs": 3851,
+          "summaryMs": 1,
+          "totalMs": 8804
+        },
+        "tiles": 4,
+        "domChars": 6750,
+        "ocrChars": 6783,
+        "ocrMode": "full",
+        "ocrJobs": 4,
+        "ocrAreas": 4,
+        "ocrStatus": "complete",
+        "noticeFound": true,
+        "status": "ready",
+        "title": "Fern Daily \u2014 scan benchmark",
+        "errors": [],
+        "metadataCount": 5,
+        "phaseEndMs": {
+          "scan": 3520,
+          "stitch": 4950,
+          "ocr": 8799,
+          "summary": 8805
+        }
+      },
+      {
+        "elapsedMs": 11839,
+        "timings": {
+          "scanMs": 3520,
+          "stitchMs": 4813,
+          "persistMs": 3,
+          "ocrMs": 3500,
+          "summaryMs": 1,
+          "totalMs": 11837
+        },
+        "tiles": 4,
+        "domChars": 6750,
+        "ocrChars": 6783,
+        "ocrMode": "full",
+        "ocrJobs": 4,
+        "ocrAreas": 4,
+        "ocrStatus": "complete",
+        "noticeFound": true,
+        "status": "ready",
+        "title": "Fern Daily \u2014 scan benchmark",
+        "errors": [],
+        "metadataCount": 5,
+        "phaseEndMs": {
+          "scan": 3516,
+          "stitch": 8334,
+          "ocr": 11833,
+          "summary": 11838
+        }
+      },
+      {
+        "elapsedMs": 8172,
+        "timings": {
+          "scanMs": 3525,
+          "stitchMs": 1171,
+          "persistMs": 3,
+          "ocrMs": 3469,
+          "summaryMs": 1,
+          "totalMs": 8169
+        },
+        "tiles": 4,
+        "domChars": 6750,
+        "ocrChars": 6783,
+        "ocrMode": "full",
+        "ocrJobs": 4,
+        "ocrAreas": 4,
+        "ocrStatus": "complete",
+        "noticeFound": true,
+        "status": "ready",
+        "title": "Fern Daily \u2014 scan benchmark",
+        "errors": [],
+        "metadataCount": 5,
+        "phaseEndMs": {
+          "scan": 3522,
+          "stitch": 4697,
+          "ocr": 8164,
+          "summary": 8170
+        }
+      }
+    ],
+    "medianMs": 8806
+  },
+  "fox_baseline": {
+    "url": "https://www.foxnews.com",
+    "mode": "full",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "panelVisibility": "visible",
+    "model": "disabled for capture benchmark",
+    "runs": [
+      {
+        "elapsedMs": 32612,
+        "timings": null,
+        "tiles": 10,
+        "domChars": 23136,
+        "ocrChars": 29109,
+        "noticeFound": false,
+        "status": "ready",
+        "title": "Fox News - Breaking News Updates | Latest News Headlines | Photos & News Videos",
+        "errors": [],
+        "metadataCount": 0,
+        "phaseEndMs": {
+          "scan": 12571,
+          "stitch": 13260,
+          "ocr": 32604,
+          "summary": 32610
+        }
+      }
+    ],
+    "medianMs": 32612
+  },
+  "fox_auto": {
+    "url": "https://www.foxnews.com",
+    "mode": "auto",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "panelVisibility": "visible",
+    "model": "disabled for capture benchmark",
+    "runs": [
+      {
+        "elapsedMs": 16462,
+        "timings": {
+          "scanMs": 9662,
+          "stitchMs": 690,
+          "persistMs": 18,
+          "ocrMs": 6084,
+          "summaryMs": 3,
+          "totalMs": 16457
+        },
+        "tiles": 10,
+        "domChars": 23156,
+        "ocrChars": 3602,
+        "ocrMode": "auto",
+        "ocrJobs": 9,
+        "ocrAreas": 209,
+        "ocrStatus": "complete",
+        "noticeFound": false,
+        "status": "ready",
+        "title": "Fox News - Breaking News Updates | Latest News Headlines | Photos & News Videos",
+        "errors": [],
+        "metadataCount": 355,
+        "phaseEndMs": {
+          "scan": 9613,
+          "stitch": 10352,
+          "ocr": 16426,
+          "summary": 16459
+        }
+      }
+    ],
+    "medianMs": 16462
+  },
+  "fox_round1": {
+    "url": "https://www.foxnews.com",
+    "mode": "auto",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "panelVisibility": "not recorded in initial harness",
+    "model": "disabled for capture benchmark",
+    "runs": [
+      {
+        "elapsedMs": 25318,
+        "timings": {
+          "scanMs": 9656,
+          "stitchMs": 692,
+          "persistMs": 24,
+          "ocrMs": 14937,
+          "summaryMs": 3,
+          "totalMs": 25312
+        },
+        "tiles": 10,
+        "domChars": 23156,
+        "ocrChars": 2947,
+        "ocrMode": "auto",
+        "ocrStatus": "complete",
+        "noticeFound": false,
+        "status": "ready",
+        "title": "Fox News - Breaking News Updates | Latest News Headlines | Photos & News Videos",
+        "errors": [],
+        "metadataCount": 364,
+        "phaseEndMs": {
+          "scan": 9607,
+          "stitch": 10348,
+          "ocr": 25267,
+          "summary": 25315
+        }
+      }
+    ],
+    "medianMs": 25318
+  },
+  "fox_round2": {
+    "url": "https://www.foxnews.com",
+    "mode": "auto",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "panelVisibility": "not recorded in initial harness",
+    "model": "disabled for capture benchmark",
+    "runs": [
+      {
+        "elapsedMs": 17990,
+        "timings": {
+          "scanMs": 9652,
+          "stitchMs": 1327,
+          "persistMs": 18,
+          "ocrMs": 6986,
+          "summaryMs": 3,
+          "totalMs": 17985
+        },
+        "tiles": 10,
+        "domChars": 23139,
+        "ocrChars": 3490,
+        "ocrMode": "auto",
+        "ocrJobs": 9,
+        "ocrAreas": 202,
+        "ocrStatus": "complete",
+        "noticeFound": false,
+        "status": "ready",
+        "title": "Fox News - Breaking News Updates | Latest News Headlines | Photos & News Videos",
+        "errors": [],
+        "metadataCount": 364,
+        "phaseEndMs": {
+          "scan": 9605,
+          "stitch": 10980,
+          "ocr": 17956,
+          "summary": 17988
+        }
+      }
+    ],
+    "medianMs": 17990
+  }
+}

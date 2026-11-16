@@ -5,7 +5,7 @@
 Chat with any page. Locally. The cat helps.
 
 A Chrome side panel that scans the page you're on into letter-size image
-tiles, OCRs them with [Tesseract.js](https://github.com/naptha/tesseract.js)
+tiles, reads the DOM text and OCRs image areas with [Tesseract.js](https://github.com/naptha/tesseract.js)
 (vendored, offline), and puts Chrome's built-in model
 ([Gemini Nano](https://developer.chrome.com/docs/ai/prompt-api)) in front of
 the result. No server. No API key. Nothing leaves the machine.
@@ -62,6 +62,25 @@ Hit **Scan page**, then talk:
 | `any images on the page?` | the model looks at the actual scan tiles |
 | `read it to me` | speaks the answer |
 
+**Scan modes** — **Auto OCR** is the default: keep the scan tiles, read page text
+from the DOM, and OCR visible image/canvas/SVG/video/iframe areas once per tile.
+Pages with very little DOM text automatically use full OCR. Choose **Full image
+OCR** for text in CSS background images, tiny images, or unusual layouts.
+Auto mode excludes visual elements smaller than 80 × 40 CSS pixels; their
+available DOM labels are still captured. Scan details show elapsed time,
+OCR coverage, failures, and whether the image capture hit the 25-viewport cap.
+
+**Cancel** stops a scan and restores the page's scroll and fixed elements;
+a running OCR job finishes before cancellation takes effect. Changing the
+active tab, URL, or viewport during capture stops the scan. Leave the page
+visible while scanning. Lazy-loaded content is read after the scroll pass.
+
+**Artifacts → Run full OCR** reprocesses saved tiles without rescanning. OCR
+failures are reported separately and retain previously recognized text. Both
+DOM and OCR evidence are searchable; avatar usernames and HTML date labels
+are included in DOM text inspection. Rescan older pages to collect these
+new labels. Capturing a page does not establish its creation date.
+
 **Memory tab** — chat with everything you've captured, today's history, the
 last 7 days, or your bookmarks. Click any item to jump to it with the chat
 scoped; pages you've scanned answer with real content.
@@ -84,7 +103,10 @@ at the scan tiles, the page's links, a table, or general knowledge (keyword rule
 it can't). Image questions also get the page's alt text and captions.
 "Who painted this" is asked twice independently; agreement is stated,
 disagreement is hedged (hover the answer to see both guesses). When the
-page doesn't cover a question, a labelled general-knowledge answer follows.
+capture does not establish a page fact, the assistant is instructed to say so.
+Unrelated general questions use a labelled general-knowledge answer. Missing
+page facts no longer trigger an extra, context-free model call. Recent
+exchanges are restored when reopening a chat and included in follow-up prompts.
 
 The pixel cat in the header shows what's happening — idle, scanning,
 replying, working. It lives in `src/mascot/mascot.json`; edit the frames,
@@ -182,3 +204,19 @@ those files with it — `make package` already does.
 Voice dependencies and their license notices are listed in
 [`vendor/voice/NOTICE`](vendor/voice/NOTICE). The tiny-voca code and weights are
 Apache-2.0; the other bundled components retain their upstream licenses.
+
+## Performance and experience review
+
+[Measured results, screenshots, and limitations](docs/review-2026-11-16/report.md).
+Reproduce the capture benchmark with `make profile`; run the UI and failure
+checks with `make review`. Set `PROFILE_MODE=auto` or `full`, `PROFILE_RUNS=3`,
+and `PROFILE_OUT=/tmp/chrome-cat-profile` as needed. For a live site:
+
+```bash
+PROFILE_URL=https://www.foxnews.com PROFILE_MODE=auto PROFILE_RUNS=1 make profile
+```
+
+The benchmark uses real Chromium screenshots, IndexedDB, and packaged
+Tesseract WASM. It disables the chat model to isolate capture costs. The
+review's model replies are simulated to verify prompt construction, streaming,
+and history wiring; `make e2e` remains the separate real-model check.

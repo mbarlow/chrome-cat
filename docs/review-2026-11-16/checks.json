@@ -1,0 +1,23 @@
+{
+  "uiChecks": [
+    "all three small-avatar usernames reach retrieval",
+    "image-only fact reaches retrieval beside DOM text",
+    "creation and update dates retain their context",
+    "full OCR runs on the saved scan",
+    "full OCR preserves DOM labels",
+    "suggested prompt stages an editable draft",
+    "UI follow-up prompt includes history and captured usernames",
+    "no horizontal overflow at 320px",
+    "composer visible at 320px",
+    "no horizontal overflow at 420px",
+    "composer visible at 420px",
+    "reopened chat restores prior user context",
+    "cancel restores scroll and fixed-element state",
+    "cancel is reported as cancellation",
+    "sparse DOM automatically falls back to full OCR",
+    "OCR failure is explicit and preserves previous text",
+    "all 13 contributor usernames survive sidebar context and retrieval"
+  ],
+  "pageErrors": [],
+  "chatModel": "simulated for UI checks; unavailable for real-model E2E"
+}

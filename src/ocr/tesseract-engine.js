@@ -54,12 +54,13 @@ export async function terminate() {
 // Jobs queue FIFO; a failed job doesn't poison the queue.
 export function ocrTile(blob, onProgress) {
   const job = queue.then(async () => {
+    clearTimeout(idleTimer);
     const worker = await getWorker();
     currentLogger = (m) => {
       if (m.status === "recognizing text") onProgress?.(m.progress ?? 0);
     };
     try {
-      const { data } = await worker.recognize(blob);
+      const { data } = await worker.recognize(blob, {}, { text: true });
       return { text: data.text || "", confidence: data.confidence ?? 0 };
     } finally {
       currentLogger = null;

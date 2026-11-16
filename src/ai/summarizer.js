@@ -1,7 +1,7 @@
 // Throwaway-session summarization (chrome-snapshot inspector pattern):
 // create → prompt → destroy, so chat-session quota stays untouched.
 
-import { createAiSession, assertRealOutput } from "./language-model.js";
+import { createAiSession, assertRealOutput, getAiAvailability } from "./language-model.js";
 import { buildSummaryPrompt, buildRollupPrompt } from "./prompts.js";
 import { SUMMARY_INPUT_CHARS } from "../shared/constants.js";
 import { refreshDomain } from "../db/memory.js";
@@ -18,8 +18,9 @@ async function oneShot(prompt, { onDownload } = {}) {
 // Prefer DOM text (cleaner than OCR). Returns "" when the model is unavailable —
 // summaries are an enhancement, never a blocker.
 export async function summarizeCapture(capture, { onDownload } = {}) {
-  const text = (capture.domText || capture.ocrText || "").slice(0, SUMMARY_INPUT_CHARS);
+  const text = (capture.mainText || capture.domText || capture.ocrText || "").slice(0, SUMMARY_INPUT_CHARS);
   if (!text.trim()) return "";
+  if ((await getAiAvailability()).state !== "available") return "";
   try {
     return await oneShot(buildSummaryPrompt(capture.title, capture.url, text), { onDownload });
   } catch {

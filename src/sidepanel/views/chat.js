@@ -11,7 +11,7 @@ import { answerAboutTiles } from "../../ai/vision.js";
 import { parseSendCommand, parsePayloadKind, dispatchSend } from "../../actions/send.js";
 import { smartBookmark } from "../../actions/bookmark.js";
 import { historyCaptures, bookmarkCaptures } from "../../sources/browser.js";
-import { getSettings, MAX_VISION_TILES, CRAWL_TIMEOUT_MS, CRAWL_SETTLE_MS } from "../../shared/constants.js";
+import { getSettings, saveSettings, MAX_VISION_TILES, CRAWL_TIMEOUT_MS, CRAWL_SETTLE_MS } from "../../shared/constants.js";
 import { escapeHtml, tokenize, plural } from "../../shared/text.js";
 import { renderMarkdown } from "../../shared/markdown.js";
 import { normalizeUrl } from "../../shared/url.js";
@@ -57,11 +57,23 @@ export function createChatView(root, ctx) {
       <button id="dlChatBtn" class="ghost" title="Save this chat as markdown">⤓ chat</button>
       <button id="cancelBtn" class="danger" hidden>Cancel</button>
     </div>
-    <div class="progress" id="progress" hidden>
+    <div class="scan-options">
+      <label for="ocrMode">Read text</label>
+      <select id="ocrMode" aria-describedby="ocrHint"><option value="auto">Auto OCR · faster</option><option value="full">Full image OCR</option></select>
+    </div>
+    <p class="scan-hint" id="ocrHint">Page text + text in images. Use Full for background images or unusual layouts.</p>
+    <details id="scanDetails" class="scan-details" hidden></details>
+    <div class="progress" id="progress" role="status" aria-live="polite" hidden>
       <span id="progressText"></span>
       <div class="track"><div class="fill" id="progressFill"></div></div>
     </div>
+    <div class="welcome" id="welcome"><strong>Talk to the page.</strong><p>Scan a page to ask about its facts, images, and links. Your captures stay on this device.</p><p class="muted">Prefer speaking? Enable voice conversation in Settings.</p></div>
     <div class="msgs" id="msgs"></div>
+    <div class="suggestions" id="suggestions" hidden>
+      <button class="mini ghost" data-question="Summarize this page">Summarize</button>
+      <button class="mini ghost" data-question="What are the key facts on this page?">Key facts</button>
+      <button class="mini ghost" data-question="What useful links are on this page?">Find links</button>
+    </div>
     <div class="attach" id="attach" hidden>
       <img id="attachImg" alt="selected region" />
       <span id="attachText"></span>
@@ -77,8 +89,8 @@ export function createChatView(root, ctx) {
       <div id="voiceTranscript" class="muted"></div>
     </div>
     <div class="composer">
-      <textarea id="input" placeholder="Ask about this page… (/follow crawls links · 'open the pricing page' navigates + scans)"></textarea>
-      <button class="primary" id="sendBtn">▶</button>
+      <textarea id="input" aria-label="Message Chrome Cat" placeholder="Ask about this page…" title="Enter to send · Shift+Enter for a new line"></textarea>
+      <button class="primary" id="sendBtn" aria-label="Send message" title="Send message">↑</button>
     </div>
     <div class="usage" id="usage"></div>
   `;
@@ -89,6 +101,7 @@ export function createChatView(root, ctx) {
     series: null,    // series row when navigating a series
     captures: [],    // series member rows (series scope)
     crawlControl: null,
+    scanControl: null,
     busy: false,
     thumbUrl: null,  // scopebar thumbnail blob URL, revoked on re-render
     region: null     // { blob, w, h, notes, url, preview } while a region is attached
@@ -126,30 +139,44 @@ export function createChatView(root, ctx) {
     tab.addEventListener("click", () => voice.stop());
   });
 
+  getSettings().then(s => { $("ocrMode").value = s.ocrMode; });
+  $("ocrMode").addEventListener("change", () => saveSettings({ ocrMode: $("ocrMode").value }));
+  $("suggestions").addEventListener("click", e => {
+    const question = e.target.closest("[data-question]")?.dataset.question;
+    if (question && !view.busy) { $("input").value = question; $("input").focus(); }
+  });
+
   // ---- rendering ----
 
   function setBusy(b) {
     view.busy = b;
     $("scanBtn").disabled = b;
+    $("ocrMode").disabled = b;
+    for (const button of $("suggestions").querySelectorAll("button")) button.disabled = b;
     $("regionBtn").disabled = b;
     $("followBtn").disabled = b || !view.capture || view.capture.status !== "ready" || !view.capture.links?.length;
     $("dlChatBtn").disabled = b || !ctx.getScope();
-    $("sendBtn").disabled = b;
+    $("sendBtn").disabled = b || !ctx.getScope();
     $("voiceStart").disabled = b || voice.active;
   }
 
+  let progressStart = 0;
   function progress(label, done, total) {
+    if (!progressStart) progressStart = performance.now();
     const el = $("progress");
     el.hidden = false;
-    $("progressText").textContent = `${label} — ${Math.floor(done)}/${total}`;
+    $("progressText").textContent = `${label} · ${Math.floor(done)}/${total} · ${((performance.now() - progressStart) / 1000).toFixed(1)}s`;
     $("progressFill").style.width = `${Math.min(100, (done / Math.max(1, total)) * 100)}%`;
   }
-  const hideProgress = () => { $("progress").hidden = true; };
+  const hideProgress = () => { $("progress").hidden = true; progressStart = 0; };
   const onPhase = (phase, done, total) => progress(PHASE_LABEL[phase] || phase, done, total);
 
   async function renderScopebar() {
     const bar = $("scopebar");
     const scope = ctx.getScope();
+    $("welcome").hidden = !!scope;
+    $("suggestions").hidden = !scope;
+    $("scanDetails").hidden = scope?.type !== "capture" || !view.capture?.timings;
     if (view.thumbUrl) {
       URL.revokeObjectURL(view.thumbUrl);
       view.thumbUrl = null;
@@ -161,6 +188,12 @@ export function createChatView(root, ctx) {
     let text = "";
     if (scope.type === "capture" && view.capture) {
       const c = view.capture;
+      if (c.timings) {
+        const t = c.timings;
+        $("scanDetails").innerHTML = `<summary>Captured in ${(t.totalMs / 1000).toFixed(1)}s · ${c.ocrMode === "auto" ? "Auto OCR" : "Full OCR"}${c.ocrErrors?.length ? ` · ${c.ocrErrors.length} OCR failures` : ""}${c.scanTruncated ? " · image limit reached" : ""}</summary><p>Scan ${(t.scanMs / 1000).toFixed(1)}s · latest OCR ${((c.ocrDurationMs ?? t.ocrMs) / 1000).toFixed(1)}s · summary ${(t.summaryMs / 1000).toFixed(1)}s</p><p>${c.domText.length.toLocaleString()} page-text characters · ${(c.domMetadata || []).length} labels and dates · ${c.ocrAreas ?? c.ocrJobs ?? 0} OCR areas</p>${c.ocrMode === "auto" ? "<p>Page text + image areas. Full OCR is available in Artifacts without rescanning.</p>" : ""}`;
+      }
+      if (c.scanTruncated) $("scanDetails").innerHTML += "<p class='scan-warning'>Image capture stopped at the scan limit. Text may extend beyond the saved images.</p>";
+      if (c.ocrErrors?.length) $("scanDetails").innerHTML += `<p class="scan-warning">${c.ocrErrors.length} OCR areas failed. Retry Full OCR in Artifacts.</p>`;
       text = `<div class="title">${escapeHtml(c.title)}</div><div class="url">${escapeHtml(c.url)} · ${plural(c.tileCount, "tile")} · ${c.status}</div>`;
     } else if (scope.type === "series" && view.series) {
       text = `<div class="title">series: ${escapeHtml(view.series.name)}</div><div class="url">${view.captures.length} pages from ${escapeHtml(view.series.domain)}</div>`;
@@ -292,6 +325,8 @@ export function createChatView(root, ctx) {
     const scope = ctx.getScope();
     if (!scope) return;
     const chat = await getOrCreateChat(scope.type, scopeIdOf(scope));
+    if (ctx.getScope() !== scope) return;
+    ctx.session.restoreHistory(chat.messages);
     for (const m of chat.messages) msgEl(m.role, m.content, m);
   }
 
@@ -305,30 +340,30 @@ export function createChatView(root, ctx) {
   async function loadScope() {
     voice.stop("Scope changed. Start a conversation when ready.");
     const scope = ctx.getScope();
-    view.capture = view.series = null;
-    view.captures = [];
+    let capture = null, series = null, captures = [], sessionScope = null;
     if (scope?.type === "capture") {
-      view.capture = await getCapture(scope.captureId);
-      if (view.capture?.seriesId) view.series = await getSeries(view.capture.seriesId);
-      if (view.capture) {
-        ctx.session.setScope({ type: "capture", capture: view.capture });
-      }
+      capture = await getCapture(scope.captureId);
+      if (capture?.seriesId) series = await getSeries(capture.seriesId);
+      if (capture) sessionScope = { type: "capture", capture };
     } else if (scope?.type === "series") {
-      view.series = await getSeries(scope.seriesId);
-      if (view.series) {
-        view.captures = (await Promise.all(view.series.captureIds.map(getCapture))).filter(Boolean);
-        ctx.session.setScope({ type: "series", series: view.series, captures: view.captures });
+      series = await getSeries(scope.seriesId);
+      if (series) {
+        captures = (await Promise.all(series.captureIds.map(getCapture))).filter(Boolean);
+        sessionScope = { type: "series", series, captures };
       }
     } else if (scope?.type === "memory") {
-      view.captures = (await listCaptures(100)).filter((c) => c.status === "ready");
-      ctx.session.setScope({ type: "memory", captures: view.captures });
+      captures = (await listCaptures(100)).filter(c => c.status === "ready");
+      sessionScope = { type: "memory", captures };
     } else if (scope?.type === "history") {
-      view.captures = await historyCaptures(scope.sinceMs);
-      ctx.session.setScope({ type: "history", captures: view.captures, label: scope.label, excerptK: 8 });
+      captures = await historyCaptures(scope.sinceMs);
+      sessionScope = { type: "history", captures, label: scope.label, excerptK: 8 };
     } else if (scope?.type === "bookmarks") {
-      view.captures = await bookmarkCaptures();
-      ctx.session.setScope({ type: "bookmarks", captures: view.captures, excerptK: 8 });
+      captures = await bookmarkCaptures();
+      sessionScope = { type: "bookmarks", captures, excerptK: 8 };
     }
+    if (ctx.getScope() !== scope) return;
+    Object.assign(view, { capture, series, captures });
+    ctx.session.setScope(sessionScope);
     renderScopebar();
     renderStrip();
     renderUsage();
@@ -351,14 +386,18 @@ export function createChatView(root, ctx) {
     // the current tab, so a denial isn't fatal here.
     if (!(await hasAllUrls())) await requestAllUrls().catch(() => {});
     setBusy(true);
+    view.scanControl = new AbortController();
+    $("cancelBtn").hidden = false;
     ctx.cat("scanning");
     try {
-      const capture = await capturePage(tab.id, tab.windowId, { onPhase });
+      const capture = await capturePage(tab.id, tab.windowId, { onPhase, signal: view.scanControl.signal, ocrMode: $("ocrMode").value });
       ctx.setScope({ type: "capture", captureId: capture.id });
       ctx.toast(`Scanned: ${plural(capture.tileCount, "tile")}.`);
     } catch (err) {
-      ctx.toast(`Scan failed: ${err?.message || err}`);
+      ctx.toast(err?.name === "AbortError" ? "Scan cancelled." : `Scan failed: ${err?.message || err}`);
     } finally {
+      view.scanControl = null;
+      $("cancelBtn").hidden = true;
       hideProgress();
       setBusy(false);
       ctx.cat("idle");
@@ -471,13 +510,12 @@ export function createChatView(root, ctx) {
       return "Scan a page first.";
     }
     const scopeId = scopeIdOf(scope);
-    msgEl("user", question);
-    await appendMessage(scope.type, scopeId, { role: "user", content: question });
-
-    const bubble = msgEl("assistant", "…");
     setBusy(true);
+    msgEl("user", question);
+    const bubble = msgEl("assistant", "…");
     ctx.cat("replying");
     try {
+      await appendMessage(scope.type, scopeId, { role: "user", content: question });
       let route = await ctx.session.route(question);
       // Visual questions look at the stored scan tiles (capture scope only —
       // a whole series of images won't fit the model's quota).
@@ -498,8 +536,10 @@ export function createChatView(root, ctx) {
       const { answer, trimmed, sources } = await ctx.session.ask(question, {
         route,
         onChunk: (full) => {
+          const messages = $("msgs");
+          const atBottom = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 56;
           setAnswer(bubble, full);
-          $("msgs").scrollTop = $("msgs").scrollHeight;
+          if (atBottom) messages.scrollTop = messages.scrollHeight;
         },
         onDownload: ctx.showDownload
       });
@@ -808,6 +848,7 @@ export function createChatView(root, ctx) {
     await performSend({ sink: "markdown", kind: "chat" }, scope, scopeIdOf(scope));
   });
   $("cancelBtn").addEventListener("click", () => {
+    if (view.scanControl) { view.scanControl.abort(); ctx.toast("Stopping scan…"); return; }
     if (view.crawlControl) view.crawlControl.cancelled = true;
     ctx.toast("Cancelling after current page…");
   });
@@ -867,5 +908,6 @@ export function createChatView(root, ctx) {
     input.setSelectionRange(text.length, text.length);
   };
 
+  setBusy(false);
   return { refresh: loadScope };
 }

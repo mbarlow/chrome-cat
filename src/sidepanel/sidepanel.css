@@ -227,3 +227,39 @@ select { background: var(--panel); color: var(--fg); border: 1px solid var(--lin
   transition: opacity 0.2s, transform 0.2s; max-width: 90%; z-index: 10;
 }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* Scan feedback and conversation affordances, including narrow side panels. */
+[hidden] { display: none !important; }
+button:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.scan-options { display: flex; gap: 10px; align-items: center; font-size: 11px; }
+.scan-options label { flex: 0 0 auto; color: var(--muted); }
+.scan-options select { flex: 1; min-width: 0; }
+.scan-hint { color: var(--muted); font: 11px/1.5 system-ui, sans-serif; margin: 5px 0 10px; }
+.scan-details { color: var(--muted); border-bottom: 1px solid var(--line); padding: 3px 0 9px; font-size: 11px; }
+.scan-details summary { color: var(--accent); cursor: pointer; }
+.scan-details p { margin: 5px 0 0; }
+.scan-warning { color: var(--warn); }
+.welcome { margin: 32px 8px 0; font: 14px/1.6 system-ui, sans-serif; max-width: 36ch; }
+.welcome strong { font-size: 23px; font-weight: 600; letter-spacing: -.5px; }
+.welcome p { margin: 10px 0; }
+.msg { font: 14px/1.6 system-ui, sans-serif; }
+.msg code, .msg pre { font-size: 12px; }
+.suggestions { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 8px; }
+.composer textarea { font: 14px/1.5 system-ui, sans-serif; min-width: 0; }
+#sendBtn { font-size: 21px; padding: 6px 13px; }
+#view-chat { overflow: hidden; }
+.msgs { min-height: 60px; }
+.scan-details { max-height: 155px; overflow-y: auto; flex: 0 0 auto; }
+@media (max-width: 360px) {
+  .bar { gap: 5px; padding-inline: 8px; }
+  .brand { font-size: 11px; }
+  .view { padding: 8px; }
+  .actions button { padding: 6px 8px; font-size: 11px; }
+  .artgrid { grid-template-columns: 1fr; }
+  .tileview { position: static; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

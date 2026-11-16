@@ -48,7 +48,7 @@ export async function stitchAndSlice(frames, metrics, { onProgress } = {}) {
     ctx.fillRect(0, 0, w, tileH); // white-pads the final partial tile — good for OCR
     ctx.drawImage(canvas, 0, i * tileH, w, tileH, 0, 0, w, tileH);
     const blob = await slice.convertToBlob({ type: "image/png" });
-    tiles.push({ blob, w, h: tileH, seq: i });
+    tiles.push({ blob, w, h: tileH, contentH: Math.min(tileH, canvas.height - i * tileH), seq: i });
     onProgress?.(i + 1, count);
   }
   return { tiles, stitchedH: canvas.height };
