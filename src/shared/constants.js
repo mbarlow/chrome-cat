@@ -6,7 +6,7 @@ export const DB_VERSION = 1;
 
 // Capture
 export const MAX_VIEWPORTS = 25;      // cap runaway/infinite-scroll pages
-export const SETTLE_MS = 600;         // covers captureVisibleTab 2/sec quota + lazy-load paint
+export const SETTLE_MS = 180;         // minimum scroll/paint settle; screenshot quota is paced separately
 export const CAPTURE_RETRY_MS = 700;  // one retry after a quota throw
 export const TILE_W = 1600;           // stitch downscale width (~188dpi at 8.5in)
 export const TILE_H = Math.round((TILE_W * 11) / 8.5); // 2071 — letter aspect
@@ -33,29 +33,38 @@ export const WEBHOOK_TIMEOUT_MS = 10_000;
 
 // chrome.storage.local keys
 export const STORAGE_KEYS = {
+  ocrMode: "cc.ocrMode",
   maxLinks: "cc.maxLinks",
   sameDomainOnly: "cc.sameDomainOnly",
   systemPrompt: "cc.systemPrompt",
-  webhooks: "cc.webhooks" // [{ name, url }]
+  webhooks: "cc.webhooks", // [{ name, url }]
+  voiceEnabled: "cc.voiceEnabled",
+  voiceName: "cc.voiceName"
 };
 
 export async function getSettings() {
   const raw = await chrome.storage.local.get(Object.values(STORAGE_KEYS));
   return {
+    ocrMode: raw[STORAGE_KEYS.ocrMode] === "full" ? "full" : "auto",
     maxLinks: raw[STORAGE_KEYS.maxLinks] ?? DEFAULT_MAX_LINKS,
     sameDomainOnly: raw[STORAGE_KEYS.sameDomainOnly] ?? true,
     systemPrompt: raw[STORAGE_KEYS.systemPrompt] ?? null, // null -> DEFAULT_SYSTEM_BASE
-    webhooks: raw[STORAGE_KEYS.webhooks] ?? []
+    webhooks: raw[STORAGE_KEYS.webhooks] ?? [],
+    voiceEnabled: raw[STORAGE_KEYS.voiceEnabled] === true,
+    voiceName: raw[STORAGE_KEYS.voiceName] === "M2" ? "M2" : "F2"
   };
 }
 
 // Partial update: only keys present in the patch are written.
 export async function saveSettings(patch) {
   const out = {};
+  if (patch.ocrMode !== undefined) out[STORAGE_KEYS.ocrMode] = patch.ocrMode === "full" ? "full" : "auto";
   if (patch.maxLinks !== undefined) out[STORAGE_KEYS.maxLinks] = patch.maxLinks;
   if (patch.sameDomainOnly !== undefined) out[STORAGE_KEYS.sameDomainOnly] = patch.sameDomainOnly;
   if (patch.systemPrompt !== undefined) out[STORAGE_KEYS.systemPrompt] = patch.systemPrompt;
   if (patch.webhooks !== undefined) out[STORAGE_KEYS.webhooks] = patch.webhooks;
+  if (patch.voiceEnabled !== undefined) out[STORAGE_KEYS.voiceEnabled] = patch.voiceEnabled === true;
+  if (patch.voiceName !== undefined) out[STORAGE_KEYS.voiceName] = patch.voiceName === "M2" ? "M2" : "F2";
   await chrome.storage.local.set(out);
 }
 

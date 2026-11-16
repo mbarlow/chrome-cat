@@ -1,0 +1,30 @@
+Chrome Cat's local speech assets
+
+tiny-voca code and weights: Copyright Muhammed Nazeem, Apache-2.0.
+  Code: https://github.com/n4ze3m/tiny-voca
+  Revision: 62e2adef158bc997042cc6234f541f1e0e4cd55d
+  Weights: https://huggingface.co/n4ze3m/tiny-voca
+  Revision: e5f9b11651a4db525fb207a56a91e4df2d1dd387
+  License: LICENSE-tiny-voca
+  src/voice/worker.js adapts the upstream browser worker: local asset paths,
+  bounded requests, playback backpressure, and cancellation by termination.
+
+dizione: Copyright Muhammed Nazeem, Apache-2.0.
+  https://github.com/n4ze3m/dizione
+  Revision: 8cd889e4de7be6bd1dd2e6891344a0729fa14dd4
+  Source and LICENSE are inside dizione.zip.
+  Dictionary attribution: phonemizer/LICENSE.cmudict
+  Homograph data attribution: phonemizer/LICENSE.homograph-data
+
+ONNX Runtime Web 1.20.1: Microsoft, MIT.
+  ort/LICENSE and ort/ThirdPartyNotices.txt
+
+Pyodide 0.27.7: Mozilla and contributors, MPL-2.0.
+  pyodide/LICENSE and pyodide/LICENSE-python.
+  Corresponding runtime source: https://github.com/pyodide/pyodide/tree/0.27.7
+  NumPy 2.0.2: BSD-3-Clause and bundled dependencies; the wheel includes
+  numpy-2.0.2.dist-info/LICENSE.txt and third-party notices.
+
+Upstream artifacts are unmodified. sources.json records immutable revisions
+or versioned distributions and SHA256 hashes for every downloaded file.
+No runtime CDN or model download is used for speech synthesis.

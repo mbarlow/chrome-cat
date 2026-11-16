@@ -2,6 +2,7 @@
 // export tiles/texts/JSON. Blob URLs are revoked on every re-render.
 
 import { listCaptures, getTiles, updateCapture } from "../../db/captures.js";
+import { recognizeCapture } from "../../ocr/capture-ocr.js";
 import { summarizeCapture } from "../../ai/summarizer.js";
 import { normalizeUrl } from "../../shared/url.js";
 
@@ -9,6 +10,7 @@ export function createArtifactsView(root, ctx) {
   root.innerHTML = `
     <div class="label">capture</div>
     <select id="capSelect"></select>
+    <div class="actions" style="margin-top:8px"><button id="runOcr" class="mini">Run full OCR</button><span id="ocrState" class="muted" role="status"></span></div>
     <div class="rail" id="rail"></div>
     <div class="artgrid">
       <div class="tileview" id="tileview"></div>
@@ -38,7 +40,7 @@ export function createArtifactsView(root, ctx) {
   `;
 
   const $ = (id) => root.querySelector(`#${id}`);
-  const view = { captures: [], capture: null, tiles: [], tileIdx: 0, mode: "ocr", urls: [] };
+  const view = { captures: [], capture: null, tiles: [], tileIdx: 0, mode: "ocr", urls: [], ocrBusy: false };
 
   function revoke() {
     for (const u of view.urls) URL.revokeObjectURL(u);
@@ -65,10 +67,12 @@ export function createArtifactsView(root, ctx) {
   function renderText() {
     const c = view.capture;
     const pane = $("textpane");
-    if (!c) { pane.textContent = ""; return; }
-    if (view.mode === "dom") pane.textContent = c.domText || "(no DOM text)";
+    if (!c) { pane.textContent = ""; $("runOcr").disabled = true; return; }
+    $("runOcr").disabled = view.ocrBusy;
+    $("ocrState").textContent = `${c.ocrMode === "auto" ? "Image areas" : "Full page"} · ${c.ocrStatus || "complete"}`;
+    if (view.mode === "dom") pane.textContent = [c.domText, c.domMetadata?.length ? "Captured labels and dates:\n" + c.domMetadata.join("\n") : ""].filter(Boolean).join("\n\n") || "(no DOM text)";
     else if (view.mode === "fullocr") pane.textContent = c.ocrText || "(no OCR text yet)";
-    else pane.textContent = view.tiles[view.tileIdx]?.ocrText || "(no OCR text for this tile)";
+    else pane.textContent = view.tiles[view.tileIdx]?.ocrText || (c.ocrMode === "auto" ? "No image text recognized here. Page text is in the DOM tab. Use Run full OCR for background images or unusual layouts." : "(no OCR text for this tile)");
   }
 
   function renderTiles() {
@@ -176,6 +180,31 @@ export function createArtifactsView(root, ctx) {
     if (!view.capture) return;
     const { domChunks, ...rest } = view.capture; // blobs live in tiles; chunks are derivable
     download(`${slug(view.capture)}.json`, new Blob([JSON.stringify(rest, null, 2)], { type: "application/json" }));
+  });
+
+  $("runOcr").addEventListener("click", async () => {
+    const capture = view.capture;
+    if (!capture || view.ocrBusy) return;
+    view.ocrBusy = true;
+    $("runOcr").disabled = true;
+    $("capSelect").disabled = true;
+    const start = performance.now();
+    try {
+      const result = await recognizeCapture(capture, { mode: "full", onProgress: (done, total) => {
+        $("ocrState").textContent = `Full OCR ${Math.floor(done)}/${total}`;
+      } });
+      await refresh();
+      ctx.toast(result.ocrErrors.length ? `Full OCR: ${result.ocrErrors.length} tiles failed. Previous text was retained.`
+        : `Full OCR finished in ${((performance.now() - start) / 1000).toFixed(1)}s.`);
+      const scope = ctx.getScope();
+      if (scope?.type === "capture" && scope.captureId === capture.id) ctx.setScope({ ...scope });
+    } catch (error) {
+      ctx.toast(`OCR failed: ${error?.message || error}`);
+    } finally {
+      view.ocrBusy = false;
+      $("runOcr").disabled = false;
+      $("capSelect").disabled = false;
+    }
   });
 
   $("resummarize").addEventListener("click", async () => {

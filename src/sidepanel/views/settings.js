@@ -5,6 +5,8 @@ import { getSettings, saveSettings, resetSystemPrompt } from "../../shared/const
 import { DEFAULT_SYSTEM_BASE } from "../../ai/prompts.js";
 import { clearAll } from "../../db/db.js";
 import { terminate } from "../../ocr/tesseract-engine.js";
+import { inputStatus, installInput, microphonePermission, openMicrophoneSetup } from "../../voice/input.js";
+import { speak, stopSpeech } from "../../voice/speech.js";
 
 export function createSettingsView(root, ctx) {
   root.innerHTML = `
@@ -13,6 +15,29 @@ export function createSettingsView(root, ctx) {
       <label>Chrome built-in model (Gemini Nano)</label>
       <button id="modelHelp" class="mini">on-device internals</button>
     </div>
+    <div class="label">voice conversation</div>
+    <div class="setrow">
+      <label for="voiceEnabled">Enable voice mode and spoken replies</label>
+      <input type="checkbox" id="voiceEnabled" />
+    </div>
+    <div class="setrow">
+      <label for="voiceName">Cat's voice</label>
+      <select id="voiceName"><option value="F2">Female</option><option value="M2">Male</option></select>
+      <button id="voicePreview" class="mini">Preview</button>
+      <button id="voicePreviewStop" class="mini">Stop</button>
+    </div>
+    <p class="muted voice-help">English only. Speech stays on this device. Start conversation in Chat to listen,
+      answer, and listen again. The microphone pauses while the cat speaks. Typing is always available.</p>
+    <div class="setrow">
+      <label>Local English voice input</label>
+      <button id="voiceSetup" class="mini">Set up</button>
+    </div>
+    <p id="voiceSetupStatus" class="muted voice-help" role="status"></p>
+    <div class="setrow">
+      <label id="microphoneStatus">Microphone permission</label>
+      <button id="microphoneSetup" class="mini">Allow microphone</button>
+    </div>
+    <p id="voicePreviewStatus" class="muted voice-help" role="status"></p>
     <div class="label">permissions</div>
     <div class="setrow">
       <label id="permLabel">all-sites access (needed for crawling)</label>
@@ -65,6 +90,11 @@ export function createSettingsView(root, ctx) {
     const s = await getSettings();
     $("maxLinks").value = s.maxLinks;
     $("sameDomain").checked = s.sameDomainOnly;
+    $("voiceEnabled").checked = s.voiceEnabled;
+    $("voiceName").value = s.voiceName;
+    const mic = await microphonePermission();
+    $("microphoneStatus").textContent = mic === "granted" ? "Microphone: allowed"
+      : mic === "denied" ? "Microphone: blocked" : "Microphone: needs setup";
     $("sysPrompt").value = s.systemPrompt ?? DEFAULT_SYSTEM_BASE;
     $("sysPromptState").textContent = s.systemPrompt ? "custom" : "default";
     renderHooks(s.webhooks);
@@ -136,6 +166,41 @@ export function createSettingsView(root, ctx) {
   });
   $("maxLinks").addEventListener("change", persist);
   $("sameDomain").addEventListener("change", persist);
+  $("voiceEnabled").addEventListener("change", async () => {
+    stopSpeech();
+    await saveSettings({ voiceEnabled: $("voiceEnabled").checked });
+  });
+  $("voiceName").addEventListener("change", async () => {
+    stopSpeech();
+    await saveSettings({ voiceName: $("voiceName").value });
+  });
+  $("voicePreview").addEventListener("click", async () => {
+    $("voicePreview").disabled = true;
+    try {
+      await speak("Hello! I'm Chrome Cat. What would you like to know about this page?", $("voiceName").value,
+        text => { $("voicePreviewStatus").textContent = text; });
+      $("voicePreviewStatus").textContent = "Preview finished.";
+    } catch (error) {
+      $("voicePreviewStatus").textContent = error.name === "AbortError" ? "Preview stopped." : error.message;
+    } finally { $("voicePreview").disabled = false; }
+  });
+  $("voicePreviewStop").addEventListener("click", stopSpeech);
+  $("microphoneSetup").addEventListener("click", openMicrophoneSetup);
+  $("voiceSetup").addEventListener("click", async () => {
+    $("voiceSetup").disabled = true;
+    const status = $("voiceSetupStatus");
+    status.textContent = "Checking local English recognition…";
+    try {
+      const available = await inputStatus();
+      if (available === "unavailable") throw new Error("Local English recognition isn't supported here. Update Chrome; typing with spoken replies still works.");
+      if (available !== "available") {
+        status.textContent = "Downloading Chrome's English language pack. This needs an internet connection once…";
+        if (!await installInput()) throw new Error("Language pack download did not finish. Try Set up again.");
+      }
+      status.textContent = "Local English recognition is ready. Allow microphone access below, then return to Chat and press Start conversation.";
+    } catch (error) { status.textContent = error.message; }
+    finally { $("voiceSetup").disabled = false; }
+  });
 
   // Applies on the next session build — destroy the live one so the change
   // takes effect on the next question, not the next scope switch.

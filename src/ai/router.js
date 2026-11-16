@@ -2,6 +2,7 @@
 // the page's links, or general knowledge. The model classifies with a
 // constrained one-word reply; keyword rules are the fallback when it can't.
 
+import { isFollowUp, conversationContext } from "./conversation-context.js";
 import { createAiSession, assertRealOutput } from "./language-model.js";
 
 export const ROUTES = ["text", "vision", "links", "table", "general"];
@@ -32,6 +33,7 @@ const EXAMPLES = [
 
 export function routeByKeywords(question) {
   if (TABLE_WORDS.test(question)) return "table";
+  if (/\b(contributors?|usernames?|dom|alt text|aria.labels?)\b/i.test(question)) return "text";
   if (VISION_WORDS.test(question)) return "vision";
   if (LINK_WORDS.test(question)) return "links";
   return "text";
@@ -57,11 +59,15 @@ export class Router {
   }
 
   // previous: the prior question, so "when was that made?" inherits its topic.
-  async route(question, { previous } = {}) {
+  async route(question, { turns = [], title = "" } = {}) {
+    const fallback = routeByKeywords(question);
+    // Explicit operations and page references do not need a classifier call.
+    if (fallback !== "text" || isFollowUp(question) ||
+        /\b(page|contributors?|usernames?|dom|summari[sz]e|tl;?dr)\b/i.test(question)) return fallback;
     let session;
     try {
       session = await this._session();
-      const prompt = previous ? `Previous question: ${previous}\nQuestion: ${question}` : question;
+      const prompt = `Current page: ${title}\n${conversationContext(turns)}Question: ${question}`;
       const out = assertRealOutput(await session.s.prompt(prompt, {
         responseConstraint: { type: "string", enum: ROUTES }
       }));

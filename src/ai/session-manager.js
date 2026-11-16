@@ -7,15 +7,14 @@ import { buildSystemPrompt, buildQuestionPrompt, buildGeneralPrompt, buildTableP
 import { findSources } from "./sources.js";
 import { assertRealOutput } from "./language-model.js";
 import { Router } from "./router.js";
-import { selectExcerpts } from "./retrieval.js";
+import { retrievalQuestion } from "./conversation-context.js";
+import { selectExcerpts, topChunks } from "./retrieval.js";
 import { QUOTA_REBUILD_AT, MAX_CONTEXT_LINKS, MAX_TABLE_ROWS, getSettings } from "../shared/constants.js";
 import { normalizeUrl } from "../shared/url.js";
 
-// The page-grounded answer gave up; worth a second, general-knowledge pass.
-const NOT_ON_PAGE = /\b(does(n't| not) (say|mention|state|specify|include|contain|provide|indicate|list)|(is |are )?not (mentioned|stated|specified|provided|included|available|listed|given|found)|no (mention|indication|information|details?)|(cannot|can't|unable to|could not|couldn't) (find|locate|determine|tell|see))\b/i;
-
 export class ChatSessionManager {
   constructor() {
+    this.generation = 0;
     this.scope = null;      // { type, capture } | { type, series, captures }
     this.session = null;
     this._creating = null;
@@ -25,7 +24,7 @@ export class ChatSessionManager {
 
   // Which path answers this question: "text" | "vision" | "links" | "general".
   route(question) {
-    return this.router.route(question, { previous: this.recentTurns.at(-1)?.question });
+    return this.router.route(question, { turns: this.recentTurns, title: this.scope?.capture?.title || this.scope?.type });
   }
 
   setScope(scope) {
@@ -35,6 +34,7 @@ export class ChatSessionManager {
   }
 
   destroy() {
+    this.generation++;
     try { this.session?.destroy?.(); } catch { /* ignore */ }
     this.session = null;
     this._creating = null;
@@ -47,12 +47,22 @@ export class ChatSessionManager {
   async _ensureSession({ onDownload } = {}) {
     if (this.session) return this.session;
     if (this._creating) return this._creating;
-    const settings = await getSettings();
-    const systemPrompt = buildSystemPrompt(this.scope, settings.systemPrompt || undefined);
-    this._creating = createAiSession({ systemPrompt, onDownload })
-      .then((s) => { this.session = s; this._creating = null; return s; })
-      .catch((err) => { this._creating = null; throw err; });
-    return this._creating;
+    const generation = this.generation;
+    const scope = this.scope;
+    const pending = (async () => {
+      const settings = await getSettings();
+      const systemPrompt = buildSystemPrompt(scope, settings.systemPrompt || undefined);
+      const session = await createAiSession({ systemPrompt, onDownload });
+      if (this.generation !== generation) {
+        session.destroy?.();
+        throw new DOMException("Chat scope changed.", "AbortError");
+      }
+      this.session = session;
+      return session;
+    })();
+    this._creating = pending;
+    try { return await pending; }
+    finally { if (this._creating === pending) this._creating = null; }
   }
 
   _captures() {
@@ -65,7 +75,7 @@ export class ChatSessionManager {
 
   // Stored page links, deduped across the scope, capped. Only fed to the
   // model when the question asks for links — they cost quota otherwise.
-  _links() {
+  _links(question) {
     const seen = new Set();
     const out = [];
     for (const c of this._captures()) {
@@ -74,10 +84,11 @@ export class ChatSessionManager {
         if (seen.has(key)) continue;
         seen.add(key);
         out.push(l);
-        if (out.length >= MAX_CONTEXT_LINKS) return out;
       }
     }
-    return out;
+    const ranked = topChunks(question, out.map(l => ({ text: `${l.context || ""} ${l.text} ${l.href}`, url: l.href })), MAX_CONTEXT_LINKS);
+    const byHref = new Map(out.map(l => [l.href, l]));
+    return ranked.length ? ranked.map(r => byHref.get(r.url)) : out.slice(0, MAX_CONTEXT_LINKS);
   }
 
   // Ask a question on a text route. onChunk(fullSoFar) streams the answer.
@@ -93,39 +104,21 @@ export class ChatSessionManager {
       trimmed = true;
     }
 
+    const generation = this.generation;
     const session = await this._ensureSession({ onDownload });
 
-    // After a rebuild, replay the last 2 turns so the thread stays coherent.
-    if (trimmed && this.recentTurns.length) {
-      for (const turn of this.recentTurns.slice(-2)) {
-        try {
-          await session.append?.([
-            { role: "user", content: turn.question },
-            { role: "assistant", content: turn.answer }
-          ]);
-        } catch { /* append unsupported — context loss is acceptable */ }
-      }
-    }
-
-    // Fold the previous question into retrieval so bare follow-ups
-    // ("anything interesting about it?") still land on the right chunks.
-    const prev = this.recentTurns[this.recentTurns.length - 1];
-    const retrievalQuery = prev ? `${prev.question} ${question}` : question;
-    // History/bookmark chunks are one-liners — carry more of them.
+    const retrievalQuery = retrievalQuestion(question, this.recentTurns);
     let prompt;
     let excerpts = [];
     if (route === "general") {
-      prompt = buildGeneralPrompt(question);
+      prompt = buildGeneralPrompt(question, this.recentTurns);
     } else {
       excerpts = selectExcerpts(retrievalQuery, this._captures(), this.scope.excerptK);
-      prompt = buildQuestionPrompt(question, excerpts, route === "links" ? this._links() : []);
+      prompt = buildQuestionPrompt(question, excerpts, route === "links" ? this._links(retrievalQuery) : [], this.recentTurns);
     }
-    let answer = await streamPrompt(session, prompt, (full) => onChunk?.(full));
-    let sources = route === "general" ? [] : findSources(answer, excerpts);
-    if (route !== "general" && NOT_ON_PAGE.test(answer) && !/\(general knowledge\)/i.test(answer)) {
-      answer = await this._generalFollowUp(question, answer, onChunk);
-      sources = [];
-    }
+    const answer = await streamPrompt(session, prompt, (full) => onChunk?.(full));
+    if (generation !== this.generation) throw new DOMException("Chat scope changed.", "AbortError");
+    const sources = route === "general" ? [] : findSources(answer, excerpts);
     this.remember(question, answer);
     return { answer, trimmed, sources };
   }
@@ -135,11 +128,13 @@ export class ChatSessionManager {
   // Returns { columns, rows, sources }.
   async table(question) {
     if (!this.scope) throw new Error("No scope — scan a page first.");
-    const excerpts = selectExcerpts(question, this._captures(), Math.max(6, this.scope.excerptK || 0));
+    const generation = this.generation;
+    const excerpts = selectExcerpts(retrievalQuestion(question, this.recentTurns), this._captures(), Math.max(6, this.scope.excerptK || 0));
     const session = await createAiSession();
     try {
-      const out = assertRealOutput(await session.prompt(buildTablePrompt(question, excerpts),
+      const out = assertRealOutput(await session.prompt(buildTablePrompt(question, excerpts, this.recentTurns),
         { responseConstraint: TABLE_SCHEMA }));
+      if (generation !== this.generation) throw new DOMException("Chat scope changed.", "AbortError");
       const { columns = [], rows = [] } = JSON.parse(out);
       const width = columns.length;
       const clean = rows.slice(0, MAX_TABLE_ROWS)
@@ -154,17 +149,15 @@ export class ChatSessionManager {
     }
   }
 
-  // Throwaway session so the chat session's context stays page-grounded.
-  async _generalFollowUp(question, pageAnswer, onChunk) {
-    const head = `${pageAnswer.trim()}\n\n`;
-    const session = await createAiSession();
-    try {
-      const extra = await streamPrompt(session, buildGeneralPrompt(question), (full) => onChunk?.(head + full));
-      return head + extra;
-    } catch {
-      return pageAnswer;
-    } finally {
-      try { session.destroy?.(); } catch { /* ignore */ }
+  // Restore completed exchanges, not the generated summary at the start.
+  restoreHistory(messages) {
+    this.recentTurns = [];
+    let question = null;
+    for (const message of messages) {
+      if (message.role === "user") question = message.content;
+      else if (message.role === "assistant" && question !== null) {
+        this.remember(question, message.content); question = null;
+      }
     }
   }
 

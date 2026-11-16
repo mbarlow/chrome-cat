@@ -7,7 +7,8 @@
 import { getOrCreateChat } from "../db/chats.js";
 import { getTiles } from "../db/captures.js";
 import { buildPdf } from "./pdf.js";
-import { WEBHOOK_TIMEOUT_MS } from "../shared/constants.js";
+import { WEBHOOK_TIMEOUT_MS, getSettings } from "../shared/constants.js";
+import { speak, stopSpeech } from "../voice/speech.js";
 
 // Composer URLs cap around 8k; leave room for encoding overhead.
 const URL_BODY_CAP = 5500;
@@ -189,8 +190,13 @@ export async function toWebhook(payload, hook, kind) {
 
 // ---- tts: "read it to me" ----
 
-export function toSpeech(payload) {
+export async function toSpeech(payload) {
   chrome.tts.stop();
+  const settings = await getSettings();
+  if (settings.voiceEnabled) {
+    await speak(payload.text, settings.voiceName);
+    return "Finished reading aloud.";
+  }
   chrome.tts.speak(payload.text.slice(0, 8000), { rate: 1.05, enqueue: false });
   return `reading aloud (${Math.min(payload.text.length, 8000).toLocaleString()} chars) — say "stop" to stop`;
 }
@@ -249,6 +255,7 @@ export function sinkHelp(webhooks = []) {
 // Full dispatch. Returns the note to show, or throws.
 export async function dispatchSend({ sink, kind, question, pdf }, scope, captures, webhooks = []) {
   if (sink === "tts-stop") {
+    stopSpeech();
     chrome.tts.stop();
     return "stopped";
   }

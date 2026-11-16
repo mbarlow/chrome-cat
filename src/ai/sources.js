@@ -19,7 +19,7 @@ export function findSources(answer, excerpts, max = 2) {
   if (!want.size) return [];
   const scored = [];
   for (const e of excerpts) {
-    if (!e.url || e.text.startsWith(IMAGE_CHUNK_HEAD)) continue;
+    if (!e.url || e.kind === "metadata" || e.kind === "ocr" || e.text.startsWith(IMAGE_CHUNK_HEAD)) continue;
     for (const passage of sentences(e.text)) {
       const toks = new Set(tokenize(passage));
       let shared = 0;

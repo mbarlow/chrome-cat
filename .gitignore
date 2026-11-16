@@ -1,2 +1,4 @@
 *.zip
+!vendor/voice/dizione.zip
+!vendor/voice/pyodide/python_stdlib.zip
 .DS_Store

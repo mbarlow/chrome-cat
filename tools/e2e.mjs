@@ -74,7 +74,7 @@ const CHECKS = [
   { name: "follow-up", ask: "when was that painting made?", text: /1434/ },
   { name: "links", ask: "what links are there?", text: /tickets|example\.com/i, route: "links" },
   { name: "general knowledge", ask: "what is the capital of France?", text: /paris/i, route: "general" },
-  { name: "page gap → general", ask: "what is the gallery's phone number?", text: /general knowledge/i }
+  { name: "missing page fact stays grounded", ask: "what is the gallery's phone number?", text: /not (provided|listed|mentioned|available|included)|does(n.t| not)|cannot|can.t|no phone/i, route: "text" }
 ];
 
 async function run() {
