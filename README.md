@@ -34,6 +34,13 @@ Google Chrome 138+ desktop. Gemini Nano downloads on first use — hit
 Distro Chromium builds (e.g. Arch) ship a placeholder model that only echoes
 the prompt; the header flags it.
 
+If the header keeps reporting a Gemini Nano download, press **show progress**.
+After 60 seconds without a progress report, **diagnostics** opens
+`chrome://on-device-internals`. Its Broker State shows the actual asset and
+hardware status. A model stuck at 0% or `Pending Assets` is not ready for chat.
+Check that you're using Google Chrome, not the separate Chromium profile.
+The tiny-voca voice preview works independently of the chat model download.
+
 ## Use it
 
 Hit **Scan page**, then talk:

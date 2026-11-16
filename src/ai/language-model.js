@@ -63,14 +63,15 @@ export function assertRealOutput(text) {
 // Create a throwaway session and ask for one word. Resolves { ok, reason? }.
 // Doubles as the warm-up that loads the model into memory.
 export async function probeModel() {
-  const session = await createAiSession();
+  let session;
   try {
+    session = await createAiSession();
     assertRealOutput(await session.prompt("Reply with the single word: ready"));
     return { ok: true };
   } catch (err) {
     return { ok: false, reason: String(err?.message || err) };
   } finally {
-    try { session.destroy?.(); } catch { /* ignore */ }
+    try { session?.destroy?.(); } catch { /* ignore */ }
   }
 }
 

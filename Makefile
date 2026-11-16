@@ -102,6 +102,7 @@ voice-test: voice-verify
 	@node tools/voice-smoke.mjs
 
 smoke: vendor-verify
+	@node tools/model-status.test.mjs
 	@node tools/smoke.mjs
 
 e2e: vendor-verify
